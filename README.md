@@ -1,5 +1,119 @@
-# Vue 3 + Vite
+# SUMO GIRL サイト — 設置手順
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+microCMS の2つのAPI（`contents` / `settings`）から静的HTMLを生成し、Cloudflare Pages に公開します。
+依存パッケージはありません。Node.js 18以上で動きます。
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## ファイル構成
+
+```
+build.mjs          ビルドスクリプト（これ1本で全ページを生成）
+package.json       npm run build の定義だけ
+assets/style.css   全ページ共通のスタイル
+assets/site.js     文字サイズ切替と、場所の進行表示
+.gitignore
+```
+
+生成物は `dist/` に出ます。Gitには含めません（Cloudflareがビルドします）。
+
+---
+
+## 1. GitHub に置く
+
+上記5ファイルをリポジトリのルートに置いて push します。
+
+## 2. Cloudflare Pages の設定
+
+**すでに設定済みです。**プロジェクト `sumogirl`（`sumogirl.pages.dev`）が `petcasadeperrito-haru/sumogirl` と接続され、次の設定になっています。
+
+| 項目 | 値 |
+|---|---|
+| ビルドコマンド | `npm run build` |
+| ビルド出力ディレクトリ | `dist` |
+| 本番ブランチ | `main`（自動デプロイ有効） |
+
+## 3. 環境変数（ここはご自身で入力してください）
+
+Cloudflare Pages の「設定 → 環境変数」に3つ登録します。**APIキーは秘密情報なので、必ずご自身で入力してください。**
+
+**すでに登録済みです。追加作業は不要です。**
+
+| 変数名 | 値 |
+|---|---|
+| `VITE_MICROCMS_SERVICE_DOMAIN` | `sumogirl` |
+| `VITE_MICROCMS_API_KEY` | 登録済み |
+| `SITE_URL` | 未設定。省略時は `https://sumogirl.pages.dev` を使います |
+
+`build.mjs` は `VITE_` 付きの名前を読むようにしてあります。独自ドメインを取ったら `SITE_URL` を追加してください（canonical と sitemap.xml に使います）。
+
+**セキュリティの注意：**`VITE_MICROCMS_API_KEY` は種別が「Text」になっており、管理画面で値がそのまま表示されます。「Secret」に変更しておくことをおすすめします（変更時に値の再入力が必要です）。
+
+## 4. 記事を書いたら自動で公開されるようにする
+
+1. Cloudflare Pages の「設定 → ビルド → デプロイフック」で、フックを1つ作りURLをコピー
+2. microCMS の `contents` API →「API設定 → Webhook」→ 「Cloudflare Pages」を選び、そのURLを貼る
+3. `settings` API にも同じものを設定する
+
+これで、記事を公開するたびにサイトが自動で更新されます。**この設定をしないと、書いても反映されません。**
+
+---
+
+## 記事の書き方
+
+| フィールド | 入れるもの |
+|---|---|
+| 日本語タイトル | 記事タイトル |
+| 日本語の要約 | トップに大きく出るときの説明文（1〜2文） |
+| 日本語本文 | 本文 |
+| コンテンツ種類 | `miru` / `kazoeru` / `shiru` のどれか**1つだけ**選ぶ |
+| URL用スラッグ | `banzuke` のような半角英数字。空ならコンテンツIDが使われる |
+| おすすめ表示 | ONにすると、その記事がトップの一番上に大きく出る |
+| 図解SVG | SVGのソースをそのまま貼る（`<svg …>…</svg>`） |
+| 場所名 | 場所中の記事だけ。`九月場所` のように、下の日程表と同じ名前で |
+| 何日目 | 場所中の記事だけ。`3` など |
+
+`場所名` と `何日目` を入れると、トップページの十五日のマスが自動で埋まります。
+
+### コンテンツ種類について
+
+このフィールドは複数選択できる設定ですが、**必ず1つだけ選んでください。**
+複数選ぶと、最初の1つがURLとカテゴリに使われます。
+
+### 図解SVGの色
+
+SVGの中では `fill="var(--shu)"` のようにCSS変数を使ってください。
+使える色は `--shu`（朱・体験）、`--ai`（藍・データ）、`--sumi`（墨・文字）、`--sub`（補助）、`--rule`（罫線）です。
+ダークモードでも自動で色が切り替わり、色を直接書くより読みやすくなります。
+
+アクセシビリティのため、SVGの中には必ず `<title>` と `<desc>` を入れてください。
+
+---
+
+## 本場所の日程を更新する
+
+`build.mjs` の冒頭にある `BASHO` の6行を、年に一度書き換えます。
+
+```js
+const BASHO = [
+  { name: '初場所',   start: '2026-01-11', end: '2026-01-25' },
+  ...
+];
+```
+
+この日程から、トップページの一年の帯・今日の位置・「あと何日」の表示がすべて自動で決まります。
+
+---
+
+## 生成されるページ
+
+| URL | 内容 |
+|---|---|
+| `/` | トップ |
+| `/miru/` `/kazoeru/` `/shiru/` | カテゴリ一覧 |
+| `/miru/スラッグ/` など | 記事ページ |
+| `/archive/` | 全記事 |
+| `/sitemap.xml` `/robots.txt` | 検索エンジン向け |
+
+## 英語版について
+
+`title_en` `body_en` `description_en` `tagline_en` は残してありますが、**いまは使っていません。**
+計画どおり半年後に着手するとき、`build.mjs` に `/en/` の生成を足せば動きます。フィールドを作り直す必要はありません。
