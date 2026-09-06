@@ -2,7 +2,8 @@
 // microCMS の2つのAPI（contents / settings）から dist/ を生成します。
 // 依存パッケージなし。Node.js 18 以上で動きます。
 
-import { mkdir, writeFile, copyFile, readdir } from 'node:fs/promises';
+import { mkdir, writeFile, copyFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 // Cloudflare Pages に登録済みの VITE_ 付きの名前にも対応しています
@@ -317,10 +318,17 @@ for (const [k, v] of Object.entries(KINDS)) {
 await write('archive/index.html',
   listPage(settings, 'これまでに書いたもの', '古い順に下へ続きます。', articles, '', '/archive/'));
 
-// アセットをコピー
+// アセットをコピー（assets/ にあっても、ルート直下にあっても拾う）
 await mkdir(join(OUT, 'assets'), { recursive: true });
-for (const f of await readdir('assets')) {
-  await copyFile(join('assets', f), join(OUT, 'assets', f));
+for (const f of ['style.css', 'site.js']) {
+  const src = existsSync(join('assets', f)) ? join('assets', f)
+            : existsSync(f) ? f
+            : null;
+  if (src) {
+    await copyFile(src, join(OUT, 'assets', f));
+  } else {
+    console.warn(`警告: ${f} が見つかりません。リポジトリに置かれているか確認してください。`);
+  }
 }
 
 // sitemap と robots
