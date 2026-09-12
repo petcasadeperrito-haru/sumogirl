@@ -76,6 +76,39 @@ export function rankChart(r) {
 </figure>`;
 }
 
+/* ── 小さな番付推移（カード用） ─────────────── */
+function spark(r) {
+  const h = (r.rankHistory || []).filter(x => rankValue(x.rank) !== null).slice(-28);
+  if (h.length < 2) return '';
+  const W = 72, H = 22;
+  const pts = h.map((x, i) => [
+    (i / (h.length - 1)) * W,
+    H - 2 - (rankValue(x.rank) / 9.92) * (H - 4)
+  ]);
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+  const last = pts[pts.length - 1];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+  <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.4"/>
+  <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2" fill="var(--accent)"/>
+</svg>`;
+}
+
+/* ── 力士カード ───────────────────────────── */
+export function rikishiCards(list) {
+  return `<div class="cards" id="cardView" hidden>${list.map(r => {
+    const c = r._career;
+    return `<a class="card" href="/rikishi/${encodeURIComponent(r.name)}/" data-div="${r.division}" data-q="${esc([r.name, r.heya, r.from, r.rank].join(' '))}">
+  <span class="cbar" style="background:${esc(r.mawashiColor?.hex || '#999')}"></span>
+  <span class="crank">${esc(r.rank)}</span>
+  <span class="cmain">
+    <span class="cname">${esc(r.name)}</span>
+    <span class="cmeta">${esc(r.heya || '')}　${esc(r.from || '')}</span>
+    <span class="cfoot">${spark(r)}<span class="crate">${c ? pct(c.rate) + '%' : '—'}</span></span>
+  </span>
+</a>`;
+  }).join('')}</div>`;
+}
+
 /* ── 力士一覧（表） ───────────────────────── */
 export function rikishiTable(list) {
   const rows = list.map(r => {
@@ -101,8 +134,12 @@ export function rikishiTable(list) {
     <button type="button" class="chip" data-f="juryo">十両<span>${list.filter(r => r.division === 'juryo').length}</span></button>
     <button type="button" class="chip" data-f="makushita">幕下<span>${list.filter(r => r.division === 'makushita').length}</span></button>
   </div>
+  <div class="views" role="group" aria-label="表示のしかた">
+    <button type="button" class="view on" data-v="card">カード</button>
+    <button type="button" class="view" data-v="table">表</button>
+  </div>
 </div>
-<div class="tw">
+<div class="tw" id="tableView" hidden>
 <table class="data sortable" id="rikishiTable">
   <thead><tr>
     <th scope="col" data-sort="text">四股名</th>

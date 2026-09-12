@@ -184,3 +184,66 @@ footer{border-top:1px solid var(--rule);margin-top:3rem;padding:1.6rem 0 2.6rem;
 footer p{margin:0 0 .35rem;max-width:48em;line-height:1.8}
 .fn{font-size:.9rem;color:var(--sub);letter-spacing:.08em}
 .social{display:flex;gap:1rem;list-style:none;margin:.7rem 0 0;padding:0}
+
+/* ── 読みやすさの調整 ───────────── */
+body{font-size:var(--fs);line-height:1.8}
+.detail .body,.lead-p,.about p,.note{font-size:1.05rem;line-height:1.95}
+.hero h1{font-size:1.4rem;line-height:1.85}
+.phead h1{font-size:1.6rem}
+.detail h1{font-size:1.9rem}
+
+/* ── 表示切替 ───────────────────── */
+.views{display:flex;gap:0;margin-left:auto}
+.view{
+  font-family:inherit;font-size:.84rem;cursor:pointer;
+  background:var(--panel);color:var(--sub);border:1px solid var(--rule);
+  padding:.32rem .9rem;
+}
+.view:first-child{border-radius:3px 0 0 3px}
+.view:last-child{border-radius:0 3px 3px 0;border-left:0}
+.view.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ── 力士カード ─────────────────── */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(15.5rem,1fr));gap:.8rem}
+.card{
+  display:grid;grid-template-columns:6px 2.2rem 1fr;
+  background:var(--panel);border:1px solid var(--rule);border-radius:4px;
+  text-decoration:none;overflow:hidden;transition:border-color .12s;
+}
+.card:hover{border-color:var(--accent)}
+.cbar{display:block}
+.crank{
+  writing-mode:vertical-rl;text-orientation:upright;
+  font-size:.82rem;letter-spacing:.14em;color:var(--sub);
+  padding:.7rem 0;justify-self:center;align-self:start;
+  border-right:1px solid var(--rule-soft);height:100%;
+}
+.cmain{display:flex;flex-direction:column;gap:.15rem;padding:.75rem .9rem}
+.cname{font-size:1.22rem;font-weight:500;line-height:1.35}
+.cmeta{font-size:.78rem;color:var(--faint)}
+.cfoot{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-top:.45rem}
+.spark{width:4.5rem;height:1.4rem;display:block}
+.crate{font-size:.86rem;color:var(--sub);font-variant-numeric:tabular-nums}
+
+/* ── 出身地マップ ───────────────── */
+.mapwrap{display:grid;gap:1.6rem;grid-template-columns:1fr}
+@media(min-width:58rem){.mapwrap{grid-template-columns:1fr 17rem}}
+.jpmap{width:100%;height:auto;display:block}
+.jpmap .bg{fill:var(--rule-soft);stroke:var(--rule);stroke-width:1}
+.jpmap .tn{font-size:11px;fill:var(--sub);text-anchor:middle}
+.jpmap .tc{font-size:14px;fill:var(--ink);text-anchor:middle;font-weight:500}
+.jpmap .ol{font-size:12px;fill:var(--faint)}
+.jpmap .tile.has{cursor:pointer}
+.jpmap .tile.has:hover .bg,.jpmap .tile.sel .bg{stroke:var(--accent);stroke-width:2}
+.jpmap .tile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mapside{border:1px solid var(--rule);border-radius:4px;background:var(--panel);padding:1rem 1.1rem;align-self:start}
+.mapside .ph{margin:0;color:var(--faint);font-size:.86rem}
+.mapside h2{font-size:1rem;font-weight:500;margin:0 0 .7rem;padding-bottom:.45rem;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;align-items:baseline}
+.mapside h2 span{font-size:.82rem;color:var(--faint);font-variant-numeric:tabular-nums}
+.mapside ul{list-style:none;margin:0;padding:0}
+.mapside li{border-bottom:1px solid var(--rule-soft)}
+.mapside a{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:.4rem;padding:.45rem .1rem;text-decoration:none}
+.mapside a:hover{background:var(--rule-soft)}
+.mapside .mn{font-size:.96rem}
+.mapside .mr{font-size:.74rem;color:var(--faint);text-align:right}
+.mapside .mh{grid-column:2/-1;font-size:.72rem;color:var(--faint)}

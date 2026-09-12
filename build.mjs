@@ -7,9 +7,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { enrich, buildRankings, pct, divisionLabel } from './stats.mjs';
 import {
-  rikishiTable, rikishiBody, rankingBody,
+  rikishiTable, rikishiCards, rikishiBody, rankingBody,
   kimariteBody, kimariteDetail, esc
 } from './rikishi.mjs';
+import { buildMap } from './map.mjs';
 
 const SERVICE = process.env.MICROCMS_SERVICE_DOMAIN || process.env.VITE_MICROCMS_SERVICE_DOMAIN;
 const KEY = process.env.MICROCMS_API_KEY || process.env.VITE_MICROCMS_API_KEY;
@@ -82,7 +83,7 @@ function head(title, description, path) {
 }
 
 function header(cur = '') {
-  const data = [['rikishi', '力士'], ['kimarite', '決まり手'], ['ranking', 'ランキング']];
+  const data = [['rikishi', '力士'], ['kimarite', '決まり手'], ['ranking', 'ランキング'], ['map', '出身地']];
   const read = Object.entries(KINDS).map(([k, v]) => [k, v.label]);
   const li = ([k, l]) => `<li><a href="/${k}/"${cur === k ? ' aria-current="page"' : ''}>${l}</a></li>`;
   return `<header class="site">
@@ -164,6 +165,7 @@ function indexPage(s, articles, db) {
   <a class="hcard" href="/rikishi/"><span class="hn">${db.rikishi.length}</span><span class="hl">力士</span><span class="hd">番付推移・成績・決まり手の傾向</span></a>
   <a class="hcard" href="/kimarite/"><span class="hn">${db.kimarite.length}</span><span class="hl">決まり手</span><span class="hd">八十二手と非技五つ</span></a>
   <a class="hcard" href="/ranking/"><span class="hn">7</span><span class="hl">ランキング</span><span class="hd">勝率・部屋別・出身地・学歴</span></a>
+  <a class="hcard" href="/map/"><span class="hn">${new Set(db.rikishi.map(r => r.from)).size}</span><span class="hl">出身地</span><span class="hd">都道府県と海外の升目地図</span></a>
 </section>`;
 
     const t = R.byYearRate.slice(0, 5);
@@ -261,8 +263,16 @@ if (DB_PATH) {
     head(`力士データベース — ${settings.site_name || 'SUMO GIRL LAB'}`,
       `幕内・十両・幕下あわせて${db.rikishi.length}人の番付推移と成績。`, '/rikishi/')
     + header('rikishi')
-    + pagehead('力士データベース', `幕内・十両・幕下あわせて${db.rikishi.length}人。見出しをクリックすると並べ替えられます。`)
-    + `<main id="main"><div class="wrap block">${rikishiTable(sorted)}</div></main>` + footer(settings));
+    + pagehead('力士データベース', `幕内・十両・幕下あわせて${db.rikishi.length}人。カードで眺めるか、表で並べ替えるか、切り替えられます。`)
+    + `<main id="main"><div class="wrap block">${rikishiTable(sorted)}${rikishiCards(sorted)}</div></main>` + footer(settings));
+
+  await write('map/index.html',
+    head(`出身地マップ — ${settings.site_name || 'SUMO GIRL LAB'}`,
+      '力士の出身地を都道府県ごとの升目で示した地図。海外出身もあわせて。', '/map/')
+    + header('map')
+    + pagehead('出身地マップ', '升目の濃さが人数です。えらぶと、その土地の力士が出ます。')
+    + `<main id="main"><div class="wrap block">${buildMap(db.rikishi)}</div></main>` + footer(settings));
+  dbUrls.push('/map/');
 
   for (const r of db.rikishi) {
     await write(`rikishi/${r.name}/index.html`,

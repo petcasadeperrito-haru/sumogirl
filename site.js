@@ -19,18 +19,34 @@
     var chips = document.querySelectorAll('.chip');
     var filter = 'all';
 
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.cards .card'));
+
     function apply() {
       var term = (q && q.value || '').trim().toLowerCase();
       var n = 0;
-      rows.forEach(function (r) {
-        var okF = filter === 'all' || r.dataset.div === filter || r.dataset.t === filter;
-        var okQ = !term || (r.dataset.q || '').toLowerCase().indexOf(term) !== -1;
-        var show = okF && okQ;
-        r.hidden = !show;
-        if (show) n++;
-      });
+      function test(el) {
+        var okF = filter === 'all' || el.dataset.div === filter || el.dataset.t === filter;
+        var okQ = !term || (el.dataset.q || '').toLowerCase().indexOf(term) !== -1;
+        return okF && okQ;
+      }
+      rows.forEach(function (r) { var s = test(r); r.hidden = !s; if (s) n++; });
+      cards.forEach(function (c) { c.hidden = !test(c); });
       if (hits) hits.textContent = n + ' 件を表示';
     }
+
+    var views = document.querySelectorAll('.view');
+    var cardView = document.getElementById('cardView');
+    var tableView = document.getElementById('tableView');
+    if (cardView) cardView.hidden = false;
+    Array.prototype.forEach.call(views, function (v) {
+      v.addEventListener('click', function () {
+        Array.prototype.forEach.call(views, function (o) { o.classList.remove('on'); });
+        v.classList.add('on');
+        var card = v.dataset.v === 'card';
+        if (cardView) cardView.hidden = !card;
+        if (tableView) tableView.hidden = card;
+      });
+    });
 
     if (q) q.addEventListener('input', apply);
     Array.prototype.forEach.call(chips, function (c) {
@@ -73,6 +89,34 @@
     var p = new URLSearchParams(location.search).get('q');
     if (p && q) { q.value = p; }
     apply();
+  }
+
+  /* ── 出身地マップ ── */
+  var md = document.getElementById('mapData');
+  if (md) {
+    var mapData = JSON.parse(md.textContent);
+    var side = document.getElementById('mapside');
+    var tiles = document.querySelectorAll('.jpmap .tile.has');
+    function show(name) {
+      var rs = mapData[name] || [];
+      Array.prototype.forEach.call(tiles, function (t) {
+        t.classList.toggle('sel', t.dataset.from === name);
+      });
+      side.innerHTML = '<h2>' + name + '<span>' + rs.length + '人</span></h2><ul>' +
+        rs.map(function (r) {
+          return '<li><a href="/rikishi/' + encodeURIComponent(r.name) + '/">' +
+            '<span class="dot" style="background:' + r.color + '"></span>' +
+            '<span class="mn">' + r.name + '</span>' +
+            '<span class="mr">' + r.rank + '</span>' +
+            '<span class="mh">' + (r.heya || '') + '</span></a></li>';
+        }).join('') + '</ul>';
+    }
+    Array.prototype.forEach.call(tiles, function (t) {
+      t.addEventListener('click', function () { show(t.dataset.from); });
+      t.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(t.dataset.from); }
+      });
+    });
   }
 
   /* ── トップの場所表示 ── */
