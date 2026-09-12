@@ -3,7 +3,8 @@
 // 依存パッケージなし。Node.js 18 以上で動きます。
 
 import { mkdir, writeFile, copyFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { rikishiBody, rikishiIndexBody, kimariteIndexBody, kimariteBody } from './rikishi.mjs';
 import { join, dirname } from 'node:path';
 
 // Cloudflare Pages に登録済みの VITE_ 付きの名前にも対応しています
@@ -95,8 +96,13 @@ function head(title, description, path) {
 }
 
 function header(current = '') {
-  const nav = Object.entries(KINDS).map(([k, v]) =>
-    `<li><a href="/${k}/"${current === k ? ' aria-current="page"' : ''}>${v.label}</a></li>`
+  const items = [
+    ...Object.entries(KINDS).map(([k, v]) => [k, v.label]),
+    ['rikishi', '力士'],
+    ['kimarite', '決まり手']
+  ];
+  const nav = items.map(([k, label]) =>
+    `<li><a href="/${k}/"${current === k ? ' aria-current="page"' : ''}>${label}</a></li>`
   ).join('');
   return `<header class="site">
   <div class="wrap bar">
@@ -318,6 +324,70 @@ for (const [k, v] of Object.entries(KINDS)) {
 await write('archive/index.html',
   listPage(settings, 'これまでに書いたもの', '古い順に下へ続きます。', articles, '', '/archive/'));
 
+/* ── 力士データベースと決まり手図鑑 ───────────────── */
+const DB_PATH = 'data/sumo.json';
+let dbUrls = [];
+if (existsSync(DB_PATH)) {
+  const db = JSON.parse(readFileSync(DB_PATH, 'utf8'));
+  const rikishi = db.rikishi || [];
+  const kimarite = db.kimarite || [];
+
+  // microCMS の rikishi API（あれば）から、娘さんのメモを読む
+  let memos = new Map();
+  try {
+    const { contents } = await api('rikishi', '?limit=200');
+    memos = new Map(contents.map(m => [m.name, m]));
+    console.log(`力士メモ ${contents.length} 件を読み込みました。`);
+  } catch {
+    console.log('rikishi API は未作成です。メモなしで生成します。');
+  }
+
+  // 決まり手ごとに、得意にしている力士を集める
+  const byKimarite = new Map();
+  for (const r of rikishi) {
+    for (const k of r.kimariteStyle || []) {
+      if (!byKimarite.has(k.name)) byKimarite.set(k.name, []);
+      byKimarite.get(k.name).push([r, k.pct]);
+    }
+  }
+  for (const v of byKimarite.values()) v.sort((a, b) => b[1] - a[1]);
+
+  await write('rikishi/index.html',
+    head(`力士データベース — ${settings.site_name || 'SUMO GIRL'}`,
+      '追跡している力士の番付推移と成績をまとめています。', '/rikishi/')
+    + header('rikishi')
+    + `<div class="pagehead wrap"><h1>力士データベース</h1><p>幕内・十両・幕下の${rikishi.length}人を追いかけています。名前をひらくと、初土俵からの番付推移が出ます。</p></div>`
+    + rikishiIndexBody(rikishi) + footer(settings));
+
+  for (const r of rikishi) {
+    await write(`rikishi/${r.name}/index.html`,
+      head(`${r.name} — ${settings.site_name || 'SUMO GIRL'}`,
+        `${r.name}（${r.rank}・${r.heya}）の番付推移と成績。`, `/rikishi/${encodeURIComponent(r.name)}/`)
+      + header('rikishi') + `<main id="main">` + rikishiBody(r, memos.get(r.name)) + `</main>` + footer(settings));
+    dbUrls.push(`/rikishi/${encodeURIComponent(r.name)}/`);
+  }
+
+  await write('kimarite/index.html',
+    head(`決まり手図鑑 — ${settings.site_name || 'SUMO GIRL'}`,
+      '八十二手と非技五つ、あわせて87種を一覧にしています。', '/kimarite/')
+    + header('kimarite')
+    + `<div class="pagehead wrap"><h1>決まり手図鑑</h1><p>日本相撲協会が定める八十二手と、非技五つ。あわせて87種あります。</p></div>`
+    + kimariteIndexBody(kimarite, byKimarite) + footer(settings));
+
+  for (const k of kimarite) {
+    await write(`kimarite/${k.n}/index.html`,
+      head(`${k.name} — ${settings.site_name || 'SUMO GIRL'}`, k.desc, `/kimarite/${k.n}/`)
+      + header('kimarite') + `<main id="main">`
+      + kimariteBody(k, (byKimarite.get(k.name) || []).slice(0, 12)) + `</main>` + footer(settings));
+    dbUrls.push(`/kimarite/${k.n}/`);
+  }
+
+  dbUrls.push('/rikishi/', '/kimarite/');
+  console.log(`力士 ${rikishi.length} 人、決まり手 ${kimarite.length} 種のページを作りました。`);
+} else {
+  console.log(`${DB_PATH} がないので、データベースのページは作りません。`);
+}
+
 // アセットをコピー（assets/ にあっても、ルート直下にあっても拾う）
 await mkdir(join(OUT, 'assets'), { recursive: true });
 for (const f of ['style.css', 'site.js']) {
@@ -332,7 +402,7 @@ for (const f of ['style.css', 'site.js']) {
 }
 
 // sitemap と robots
-const urls = ['/', '/archive/', ...Object.keys(KINDS).map(k => `/${k}/`), ...articles.map(urlOf)];
+const urls = ['/', '/archive/', ...Object.keys(KINDS).map(k => `/${k}/`), ...articles.map(urlOf), ...dbUrls];
 await write('sitemap.xml',
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
   urls.map(u => `<url><loc>${SITE_URL}${u}</loc></url>`).join('\n') +
