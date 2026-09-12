@@ -146,3 +146,66 @@ main{padding:2.2rem 0 0}
 footer{border-top:1px solid var(--rule);padding:1.6rem 0 2.6rem;font-size:.86rem;color:var(--sub)}
 footer p{margin:0 0 .4rem}
 .social{display:flex;gap:1rem;list-style:none;margin:.7rem 0 0;padding:0}
+
+/* ── 力士データベース ───────────────── */
+.rk-section{padding:1.9rem 0 2.2rem;border-bottom:1px solid var(--rule)}
+.rk-head{
+  display:flex;align-items:baseline;gap:.7rem;
+  font-size:1.1rem;font-weight:500;margin:2rem 0 1rem;
+}
+.rk-section .rk-head:first-child{margin-top:0}
+.rk-count{font-size:.84rem;font-weight:400;color:var(--sub)}
+.rk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1px;background:var(--rule)}
+.rk-card{
+  display:flex;align-items:center;gap:.7rem;
+  background:var(--paper);padding:.85rem .9rem;text-decoration:none;
+}
+.rk-card:hover{background:var(--rule-soft)}
+.rk-mawashi{
+  display:inline-block;width:.85rem;height:.85rem;border-radius:50%;
+  flex:none;box-shadow:0 0 0 1px var(--rule) inset;
+}
+.rk-mawashi.big{width:1.1rem;height:1.1rem}
+.rk-body{display:flex;flex-direction:column;min-width:0}
+.rk-name{font-size:1rem;line-height:1.4}
+.rk-meta{font-size:.78rem;color:var(--sub);line-height:1.5}
+
+.chart{margin:1.6rem 0 .6rem;padding:1.1rem .6rem .4rem;background:var(--rule-soft);border-radius:6px}
+.chart svg{display:block;width:100%;height:auto}
+
+.post h2.sub{font-size:.94rem;font-weight:400;color:var(--sub);margin:2.2rem 0 .9rem}
+.post .yomi{font-size:.9rem;font-weight:400;color:var(--sub);margin-left:.8rem}
+
+.bars{list-style:none;margin:0;padding:0;max-width:30rem}
+.bars li{display:grid;grid-template-columns:6.5rem 1fr 2.6rem;align-items:center;gap:.7rem;margin:0 0 .5rem}
+.bl{font-size:.92rem}
+.bt{display:block;height:.6rem;background:var(--rule-soft);border-radius:3px;overflow:hidden}
+.bf{display:block;height:100%;background:var(--ai);border-radius:3px}
+.bv{font-size:.84rem;color:var(--sub);text-align:right}
+
+.facts{border-collapse:collapse;width:100%;max-width:34rem;font-size:.94rem}
+.facts th,.facts td{border-bottom:1px solid var(--rule-soft);padding:.55rem .2rem;text-align:left;vertical-align:top}
+.facts th{width:7.5rem;font-weight:400;color:var(--sub)}
+
+.rk-note{margin:1.6rem 0 0;max-width:34em;color:var(--sub)}
+.memo{margin:1.8rem 0 0;padding:1.1rem 1.2rem;background:var(--rule-soft);border-left:3px solid var(--shu);border-radius:0 5px 5px 0;max-width:34em}
+.memo-label{margin:0 0 .4rem;font-size:.78rem;color:var(--sub)}
+.memo-body{margin:0;font-family:'Yomogi',cursive;font-size:1.02rem;line-height:1.9;color:var(--shu)}
+.source{margin:2.2rem 0 0;font-size:.82rem;color:var(--sub)}
+
+/* ── 決まり手図鑑 ───────────────────── */
+.km-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr));gap:1px;background:var(--rule);margin:0 0 1.6rem}
+.km{
+  display:flex;flex-direction:column;gap:.12rem;
+  background:var(--paper);padding:.75rem .85rem;text-decoration:none;
+  border-left:3px solid var(--rule);
+}
+.km:hover{background:var(--rule-soft)}
+.km-n{font-size:.98rem;line-height:1.4}
+.km-y{font-size:.72rem;color:var(--sub)}
+.km-u{font-size:.72rem;color:var(--shu);margin-top:.15rem}
+.km.kihon{border-left-color:var(--shu)}
+.km.nage{border-left-color:var(--ai)}
+.km.hineri{border-left-color:var(--sumi)}
+.km.kake,.km.sori,.km.tokushu{border-left-color:var(--sub)}
+.km.hiwaza{border-left-color:var(--rule)}
