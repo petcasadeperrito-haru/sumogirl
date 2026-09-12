@@ -1,22 +1,24 @@
-// SUMO GIRL — 静的サイトビルダー
-// microCMS の2つのAPI（contents / settings）から dist/ を生成します。
-// 依存パッケージなし。Node.js 18 以上で動きます。
+// SUMO GIRL LAB — 静的サイトビルダー
+// microCMS（contents / settings / rikishi）と data/sumo.json から dist/ を生成します。
+// 依存パッケージなし。Node.js 18 以上。
 
 import { mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { rikishiBody, rikishiIndexBody, kimariteIndexBody, kimariteBody } from './rikishi.mjs';
 import { join, dirname } from 'node:path';
+import { enrich, buildRankings, pct, divisionLabel } from './stats.mjs';
+import {
+  rikishiTable, rikishiBody, rankingBody,
+  kimariteBody, kimariteDetail, esc
+} from './rikishi.mjs';
 
-// Cloudflare Pages に登録済みの VITE_ 付きの名前にも対応しています
 const SERVICE = process.env.MICROCMS_SERVICE_DOMAIN || process.env.VITE_MICROCMS_SERVICE_DOMAIN;
 const KEY = process.env.MICROCMS_API_KEY || process.env.VITE_MICROCMS_API_KEY;
-const SITE_URL = process.env.SITE_URL || 'https://sumogirl.pages.dev';
+const SITE_URL = (process.env.SITE_URL || 'https://sumogirl.pages.dev').replace(/\/$/, '');
 const OUT = 'dist';
 
-/* ──────────────────────────────────────────────────────────
-   本場所の日程。年に一度、ここだけ書き換えてください。
-   協会の発表で日付を確認してから更新すること。
-   ────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────
+   本場所の日程。年に一度、ここだけ書き換えます。
+   ────────────────────────────────────────────── */
 const BASHO = [
   { name: '初場所',     start: '2026-01-11', end: '2026-01-25' },
   { name: '春場所',     start: '2026-03-08', end: '2026-03-22' },
@@ -31,38 +33,23 @@ if (!SERVICE || !KEY) {
   process.exit(1);
 }
 
-/* ── microCMS ───────────────────────────────── */
-
 async function api(endpoint, query = '') {
-  const url = `https://${SERVICE}.microcms.io/api/v1/${endpoint}${query}`;
-  const res = await fetch(url, { headers: { 'X-MICROCMS-API-KEY': KEY } });
-  if (!res.ok) throw new Error(`${endpoint} の取得に失敗しました (${res.status}): ${await res.text()}`);
+  const res = await fetch(`https://${SERVICE}.microcms.io/api/v1/${endpoint}${query}`,
+    { headers: { 'X-MICROCMS-API-KEY': KEY } });
+  if (!res.ok) throw new Error(`${endpoint} (${res.status})`);
   return res.json();
 }
 
-/* ── 小道具 ─────────────────────────────────── */
-
-const esc = (s = '') => String(s)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-// microCMS のセレクトは配列で返るので先頭を取る
-const pick = (v, fallback = '') => Array.isArray(v) ? (v[0] || fallback) : (v || fallback);
+const pick = (v, f = '') => Array.isArray(v) ? (v[0] || f) : (v || f);
 
 const KINDS = {
-  miru:     { label: '観る',   desc: '見て思ったことです。場所の十五日間はここが増えます。うまく言えないことも、そのまま書きます。' },
-  kazoeru:  { label: '数える', desc: '数えると分かることがあります。図を1枚と、それを見て驚いた話を1つ。場所のあいだに作っています。' },
-  shiru:    { label: '知る',   desc: '用語、所作、番付、決まり手。当たり前に見てきたものを、あらためて調べています。ここがいちばん厚くなる予定です。' }
+  miru:    { label: '観る',   desc: '見て思ったこと。場所の十五日間はここが増えます。' },
+  kazoeru: { label: '数える', desc: 'データを一つ取り上げて、図一枚で説明します。' },
+  shiru:   { label: '知る',   desc: '用語、所作、番付、決まり手。調べたことの置き場です。' }
 };
-
-// content_type は複数選択のため、最初に選ばれた1つを主カテゴリとして使う
-const kindOf = (a) => (KINDS[pick(a.content_type)] ? pick(a.content_type) : 'shiru');
-const urlOf = (a) => `/${kindOf(a)}/${a.slug || a.id}/`;
-
-function jpDate(iso) {
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
-}
+const kindOf = a => (KINDS[pick(a.content_type)] ? pick(a.content_type) : 'shiru');
+const urlOf = a => `/${kindOf(a)}/${a.slug || a.id}/`;
+const jpDate = iso => { const d = new Date(iso); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; };
 
 async function write(path, html) {
   const full = join(OUT, path);
@@ -70,8 +57,7 @@ async function write(path, html) {
   await writeFile(full, html, 'utf8');
 }
 
-/* ── 部品 ───────────────────────────────────── */
-
+/* ── 共通の枠 ─────────────────────────────── */
 function head(title, description, path) {
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -95,21 +81,19 @@ function head(title, description, path) {
 <a class="skip" href="#main">本文へ移動</a>`;
 }
 
-function header(current = '') {
-  const items = [
-    ...Object.entries(KINDS).map(([k, v]) => [k, v.label]),
-    ['rikishi', '力士'],
-    ['kimarite', '決まり手']
-  ];
-  const nav = items.map(([k, label]) =>
-    `<li><a href="/${k}/"${current === k ? ' aria-current="page"' : ''}>${label}</a></li>`
-  ).join('');
+function header(cur = '') {
+  const data = [['rikishi', '力士'], ['kimarite', '決まり手'], ['ranking', 'ランキング']];
+  const read = Object.entries(KINDS).map(([k, v]) => [k, v.label]);
+  const li = ([k, l]) => `<li><a href="/${k}/"${cur === k ? ' aria-current="page"' : ''}>${l}</a></li>`;
   return `<header class="site">
   <div class="wrap bar">
-    <a class="logo" href="/"><span class="a">SUMO</span><span class="b">girl</span></a>
-    <nav aria-label="カテゴリ"><ul>${nav}</ul></nav>
+    <a class="logo" href="/"><span class="a">SUMO</span><span class="b">girl</span><span class="c">LAB</span></a>
+    <nav aria-label="サイト内">
+      <ul class="primary">${data.map(li).join('')}</ul>
+      <ul class="secondary">${read.map(li).join('')}</ul>
+    </nav>
     <div class="tools">
-      <span id="fsLabel">文字の大きさ</span>
+      <span id="fsLabel">文字</span>
       <button type="button" data-size="1" aria-pressed="true" aria-describedby="fsLabel">小</button>
       <button type="button" data-size="1.1" aria-pressed="false" aria-describedby="fsLabel">中</button>
       <button type="button" data-size="1.22" aria-pressed="false" aria-describedby="fsLabel">大</button>
@@ -126,8 +110,8 @@ function footer(s) {
   ].filter(Boolean).join('');
   return `<footer>
   <div class="wrap">
-    <p>${esc(s.site_name || 'SUMO GIRL')}</p>
-    <p>本場所の映像・写真は掲載していません。図はすべて自作です。</p>
+    <p class="fn">${esc(s.site_name || 'SUMO GIRL LAB')}</p>
+    <p>データは日本相撲協会の公表資料をもとに集計したものです。本場所の映像・写真は掲載していません。図表はすべて自作です。</p>
     ${links ? `<ul class="social">${links}</ul>` : ''}
   </div>
 </footer>
@@ -136,277 +120,202 @@ function footer(s) {
 </html>`;
 }
 
-function itemRow(a) {
-  const k = kindOf(a);
-  return `<article class="item">
-  <p class="meta"><span class="tag ${k}">${KINDS[k].label}</span><time datetime="${esc(a.publishedAt)}">${jpDate(a.publishedAt)}</time></p>
-  <h3><a href="${urlOf(a)}">${esc(a.title_ja)}</a></h3>
-</article>`;
+function pagehead(title, sub, extra = '') {
+  return `<div class="phead"><div class="wrap">
+  <h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ''}${extra}
+</div></div>`;
 }
 
-/* ── 一年の帯 ───────────────────────────────── */
-
-function yearBar(bashoList) {
+/* ── 一年の帯 ─────────────────────────────── */
+function yearBar() {
   const year = new Date().getFullYear();
-  const jan1 = new Date(year, 0, 1).getTime();
-  const dec31 = new Date(year, 11, 31).getTime();
-  const span = dec31 - jan1;
-  const X = (t) => 24 + ((t - jan1) / span) * 672;
-
-  const blocks = [];
-  const wide = [];
-  const narrow = [];
-  for (const b of bashoList) {
-    const s = new Date(b.start).getTime();
-    const e = new Date(b.end).getTime();
-    if (isNaN(s) || isNaN(e)) continue;
-    const x1 = X(s), x2 = X(e);
-    const w = Math.max(x2 - x1, 10);
-    const cx = (x1 + w / 2).toFixed(1);
-    blocks.push(`<rect x="${x1.toFixed(1)}" y="38" width="${w.toFixed(1)}" height="12" rx="6"/>`);
-    wide.push(`<text x="${cx}" y="70">${esc(b.name)}</text>`);
-    narrow.push(`<text x="${cx}" y="76">${new Date(b.start).getMonth() + 1}月</text>`);
+  const jan1 = new Date(year, 0, 1).getTime(), dec31 = new Date(year, 11, 31).getTime();
+  const X = t => 24 + ((t - jan1) / (dec31 - jan1)) * 672;
+  const blocks = [], wide = [], narrow = [];
+  for (const b of BASHO) {
+    const x1 = X(new Date(b.start).getTime()), x2 = X(new Date(b.end).getTime());
+    const w = Math.max(x2 - x1, 10), cx = (x1 + w / 2).toFixed(1);
+    blocks.push(`<rect x="${x1.toFixed(1)}" y="38" width="${w.toFixed(1)}" height="10" rx="5"/>`);
+    wide.push(`<text x="${cx}" y="68">${esc(b.name)}</text>`);
+    narrow.push(`<text x="${cx}" y="74">${new Date(b.start).getMonth() + 1}月</text>`);
   }
-
-  return `<svg viewBox="0 0 720 84" role="img" aria-labelledby="ybT ybD">
+  return `<svg viewBox="0 0 720 82" role="img" aria-labelledby="ybT ybD">
   <title id="ybT">一年の中の本場所の位置</title>
-  <desc id="ybD">一月から十二月までを横一列にした帯。年に六回、それぞれ十五日間の本場所が置かれている。</desc>
-  <line x1="24" y1="44" x2="696" y2="44" stroke="var(--rule)" stroke-width="1.5"/>
-  <g fill="var(--shu)">${blocks.join('')}</g>
-  <g class="lbl-wide" fill="var(--sub)" font-size="13" text-anchor="middle">${wide.join('')}</g>
-  <g class="lbl-narrow" fill="var(--sub)" font-size="21" text-anchor="middle">${narrow.join('')}</g>
+  <desc id="ybD">年六場所、各十五日間の位置を一年の帯の上に示したもの。</desc>
+  <line x1="24" y1="43" x2="696" y2="43" stroke="var(--rule)" stroke-width="1"/>
+  <g fill="var(--accent)">${blocks.join('')}</g>
+  <g class="lbl-wide ax">${wide.join('')}</g>
+  <g class="lbl-narrow ax2">${narrow.join('')}</g>
   <g id="nowMark" hidden>
-    <line id="nowLine" x1="0" y1="24" x2="0" y2="58" stroke="var(--sumi)" stroke-width="2"/>
-    <circle id="nowDot" cx="0" cy="24" r="4" fill="var(--sumi)"/>
+    <line id="nowLine" x1="0" y1="26" x2="0" y2="56" stroke="var(--ink)" stroke-width="2"/>
+    <circle id="nowDot" cx="0" cy="26" r="3.5" fill="var(--ink)"/>
   </g>
 </svg>`;
 }
 
-/* ── トップページ ───────────────────────────── */
+/* ── トップページ ─────────────────────────── */
+function indexPage(s, articles, db) {
+  const latest = articles.slice(0, 4);
+  let hub = '', top5 = '';
 
-function indexPage(s, articles) {
-  const hero = articles.find(a => a.featured) || articles[0];
-  const rest = articles.filter(a => a !== hero).slice(0, 4);
+  if (db) {
+    const R = buildRankings(db.rikishi);
+    hub = `<section class="hub wrap" aria-label="データベース">
+  <a class="hcard" href="/rikishi/"><span class="hn">${db.rikishi.length}</span><span class="hl">力士</span><span class="hd">番付推移・成績・決まり手の傾向</span></a>
+  <a class="hcard" href="/kimarite/"><span class="hn">${db.kimarite.length}</span><span class="hl">決まり手</span><span class="hd">八十二手と非技五つ</span></a>
+  <a class="hcard" href="/ranking/"><span class="hn">7</span><span class="hl">ランキング</span><span class="hd">勝率・部屋別・出身地・学歴</span></a>
+</section>`;
 
-  const basho = BASHO;
-
-  // 記事から「どの場所の何日目を書いたか」を集める
-  const written = {};
-  for (const a of articles) {
-    if (a.basho && a.basho_day) {
-      (written[a.basho] ||= []).push(Number(a.basho_day));
-    }
+    const t = R.byYearRate.slice(0, 5);
+    top5 = `<section class="wrap block">
+  <div class="bhead"><h2>2026年 勝率上位</h2><a href="/ranking/">ランキングをすべて見る</a></div>
+  <table class="data compact"><thead><tr><th scope="col" class="n">#</th><th scope="col">力士</th><th scope="col">番付</th><th scope="col" class="n">勝率%</th><th scope="col" class="n">勝-敗</th></tr></thead>
+  <tbody>${t.map((r, i) => `<tr><td class="n rk">${i + 1}</td><td class="nm"><span class="dot" style="background:${esc(r.mawashiColor?.hex || '#999')}"></span><a href="/rikishi/${encodeURIComponent(r.name)}/">${esc(r.name)}</a></td><td>${esc(r.rank)}</td><td class="n">${pct(r._year.rate)}</td><td class="n">${r._year.win}-${r._year.loss}</td></tr>`).join('')}</tbody></table>
+</section>`;
   }
 
-  const heroBlock = hero ? `<article class="lead wrap">
-  <span class="tag ${kindOf(hero)}">${KINDS[kindOf(hero)].label}</span>
-  <h2><a href="${urlOf(hero)}">${esc(hero.title_ja)}</a></h2>
-  ${hero.summary_ja ? `<p>${esc(hero.summary_ja)}</p>` : ''}
-  ${hero.figure_svg ? `<div class="figure">${hero.figure_svg}</div>` : ''}
-</article>` : `<div class="wrap"><p class="empty">まだ記事がありません。</p></div>`;
-
-  const gates = Object.entries(KINDS).map(([k, v]) =>
-    `<li><p class="name"><a href="/${k}/">${v.label}</a></p><p>${esc(v.desc)}</p></li>`
-  ).join('');
-
-  return head(
-    s.site_name || 'SUMO GIRL',
-    s.description_ja || '相撲が動くのは年90日。残りの日に、調べたり数えたりしています。',
-    '/'
-  ) + header() + `
-<section class="year wrap" aria-labelledby="yearTitle">
-  <h1 id="yearTitle" class="thesis">${(s.tagline_ja || '相撲が動くのは、一年で九十日。<br>残りの日に、調べたり数えたりしています。')}</h1>
-  ${yearBar(basho)}
+  return head(s.site_name || 'SUMO GIRL LAB',
+    s.description_ja || '大相撲の力士データと、見て思ったことの記録。', '/')
+    + header() + `
+<section class="hero wrap" aria-labelledby="ht">
+  <h1 id="ht">${s.tagline_ja || '大相撲が動くのは、一年で九十日。<br>残りの日は、数えたり調べたりしています。'}</h1>
+  ${yearBar()}
   <p class="status" id="status"></p>
   ${s.notice ? `<p class="notice">${esc(s.notice)}</p>` : ''}
-  <div class="fifteen" id="fifteen" hidden>
-    <h2 id="fifteenTitle">この場所に書いたもの</h2>
-    <ol class="days" id="days" aria-labelledby="fifteenTitle"></ol>
-  </div>
+  <div class="fifteen" id="fifteen" hidden><h2 id="f15">この場所に書いたもの</h2><ol class="days" id="days" aria-labelledby="f15"></ol></div>
 </section>
-<script id="bashoData" type="application/json">${JSON.stringify({ basho, written })}</script>
-
+<script id="bashoData" type="application/json">${JSON.stringify({ basho: BASHO, written: writtenMap(articles) })}</script>
 <main id="main">
-${heroBlock}
-
-<section class="list wrap" aria-labelledby="recentTitle">
-  <h2 id="recentTitle">最近書いたもの</h2>
-  ${rest.map(itemRow).join('\n') || '<p class="empty">まだありません。</p>'}
-  <p class="more"><a href="/archive/">これまでに書いたもの</a></p>
+${hub}
+${top5}
+<section class="wrap block">
+  <div class="bhead"><h2>最近書いたもの</h2><a href="/archive/">記事の一覧</a></div>
+  ${latest.length ? `<ul class="posts">${latest.map(a => `<li>
+    <a href="${urlOf(a)}"><span class="pk ${kindOf(a)}">${KINDS[kindOf(a)].label}</span><span class="pt">${esc(a.title_ja)}</span><time datetime="${esc(a.publishedAt)}">${jpDate(a.publishedAt)}</time></a>
+  </li>`).join('')}</ul>` : '<p class="empty">まだ記事がありません。</p>'}
 </section>
-
-<section class="gates wrap" aria-label="三つの入口">
-  <ul>${gates}</ul>
+<section class="wrap block about">
+  <h2>このサイトについて</h2>
+  ${(s.profile_ja || '').split('\n').filter(Boolean).map(p => `<p>${esc(p)}</p>`).join('') || '<p>大相撲の記録を集めて、数えて、書いています。</p>'}
 </section>
-
-<section class="about wrap" aria-labelledby="aboutTitle">
-  <div class="about-in">
-    <svg viewBox="0 0 176 132" role="img" aria-labelledby="abT abD">
-      <title id="abT">力士と書き手の大きさの比較</title>
-      <desc id="abD">大きな力士のシルエットの横に、書き手を表す小さな人影が立っている。</desc>
-      <line x1="4" y1="118" x2="172" y2="118" stroke="var(--rule)" stroke-width="1.5"/>
-      <g fill="var(--shu)">
-        <circle cx="58" cy="36" r="18"/><circle cx="58" cy="14" r="6.5"/>
-        <path d="M24 118 Q16 66 58 57 Q100 66 92 118 Z"/>
-      </g>
-      <g fill="var(--sumi)">
-        <circle cx="136" cy="62" r="8"/>
-        <path d="M127 62 Q125 78 130 82 L142 82 Q147 78 145 62 Z"/>
-        <path d="M127 82 Q125 101 129 118 L143 118 Q147 101 145 82 Z"/>
-      </g>
-    </svg>
-    <div>
-      <h2 id="aboutTitle">書いている人</h2>
-      ${(s.profile_ja || '').split('\n').filter(Boolean).map(p => `<p>${esc(p)}</p>`).join('\n')}
-      ${s.sign_ja ? `<p class="sign">${esc(s.sign_ja)}</p>` : ''}
-    </div>
-  </div>
-</section>
-</main>
-` + footer(s);
+</main>` + footer(s);
 }
 
-/* ── 記事ページ ─────────────────────────────── */
+function writtenMap(articles) {
+  const w = {};
+  for (const a of articles) if (a.basho && a.basho_day) (w[a.basho] ||= []).push(Number(a.basho_day));
+  return w;
+}
 
+/* ── 記事 ─────────────────────────────────── */
 function postPage(s, a) {
   const k = kindOf(a);
-  return head(
-    `${a.title_ja} — ${s.site_name || 'SUMO GIRL'}`,
-    a.summary_ja || s.description_ja || '',
-    urlOf(a)
-  ) + header(k) + `
-<main id="main">
-<article class="post wrap">
-  <p class="meta"><span class="tag ${k}">${KINDS[k].label}</span><time datetime="${esc(a.publishedAt)}">${jpDate(a.publishedAt)}</time></p>
+  return head(`${a.title_ja} — ${s.site_name || 'SUMO GIRL LAB'}`, a.summary_ja || s.description_ja || '', urlOf(a))
+    + header(k) + `<main id="main"><article class="detail wrap">
+  <nav class="crumb"><a href="/${k}/">${KINDS[k].label}</a> <span>/</span> <time datetime="${esc(a.publishedAt)}">${jpDate(a.publishedAt)}</time></nav>
   <h1>${esc(a.title_ja)}</h1>
-  ${a.figure_svg ? `<div class="figure">${a.figure_svg}</div>` : ''}
+  ${a.summary_ja ? `<p class="lead-p">${esc(a.summary_ja)}</p>` : ''}
+  ${a.figure_svg ? `<figure class="chart">${a.figure_svg}</figure>` : ''}
   <div class="body">${a.body_ja || ''}</div>
-</article>
-<p class="backlink wrap"><a href="/${k}/">${KINDS[k].label}の記事をもっと見る</a></p>
-</main>
-` + footer(s);
+</article></main>` + footer(s);
 }
 
-/* ── 一覧ページ ─────────────────────────────── */
-
-function listPage(s, title, desc, articles, current = '', path = '/') {
-  return head(`${title} — ${s.site_name || 'SUMO GIRL'}`, desc, path) + header(current) + `
-<div class="pagehead wrap">
-  <h1>${esc(title)}</h1>
-  <p>${esc(desc)}</p>
-</div>
-<main id="main">
-<section class="list wrap" aria-label="記事の一覧">
-  ${articles.map(itemRow).join('\n') || '<p class="empty">まだ記事がありません。</p>'}
-</section>
-</main>
-` + footer(s);
+function listPage(s, title, sub, arts, cur, path) {
+  return head(`${title} — ${s.site_name || 'SUMO GIRL LAB'}`, sub, path) + header(cur)
+    + pagehead(title, sub) + `<main id="main"><div class="wrap block">
+  ${arts.length ? `<ul class="posts">${arts.map(a => `<li><a href="${urlOf(a)}"><span class="pk ${kindOf(a)}">${KINDS[kindOf(a)].label}</span><span class="pt">${esc(a.title_ja)}</span><time datetime="${esc(a.publishedAt)}">${jpDate(a.publishedAt)}</time></a></li>`).join('')}</ul>`
+      : '<p class="empty">まだ記事がありません。</p>'}
+</div></main>` + footer(s);
 }
 
-/* ── 実行 ───────────────────────────────────── */
-
+/* ── 実行 ─────────────────────────────────── */
 const settings = await api('settings');
 const { contents: articles } = await api('contents', '?limit=100&orders=-publishedAt');
+console.log(`記事 ${articles.length} 本。`);
 
-console.log(`記事 ${articles.length} 本を取得しました。`);
+const DB_PATH = ['data/sumo.json', 'sumo.json'].find(p => existsSync(p));
+let db = null, dbUrls = [];
 
-await write('index.html', indexPage(settings, articles));
+if (DB_PATH) {
+  const raw = JSON.parse(readFileSync(DB_PATH, 'utf8'));
+  db = { rikishi: enrich(raw.rikishi || []), kimarite: raw.kimarite || [] };
 
-for (const a of articles) {
-  await write(`${kindOf(a)}/${a.slug || a.id}/index.html`, postPage(settings, a));
-}
-
-for (const [k, v] of Object.entries(KINDS)) {
-  const list = articles.filter(a => kindOf(a) === k);
-  await write(`${k}/index.html`, listPage(settings, v.label, v.desc, list, k, `/${k}/`));
-}
-
-await write('archive/index.html',
-  listPage(settings, 'これまでに書いたもの', '古い順に下へ続きます。', articles, '', '/archive/'));
-
-/* ── 力士データベースと決まり手図鑑 ───────────────── */
-const DB_PATH = 'data/sumo.json';
-let dbUrls = [];
-if (existsSync(DB_PATH)) {
-  const db = JSON.parse(readFileSync(DB_PATH, 'utf8'));
-  const rikishi = db.rikishi || [];
-  const kimarite = db.kimarite || [];
-
-  // microCMS の rikishi API（あれば）から、娘さんのメモを読む
   let memos = new Map();
   try {
     const { contents } = await api('rikishi', '?limit=200');
     memos = new Map(contents.map(m => [m.name, m]));
-    console.log(`力士メモ ${contents.length} 件を読み込みました。`);
-  } catch {
-    console.log('rikishi API は未作成です。メモなしで生成します。');
-  }
+    console.log(`力士メモ ${contents.length} 件。`);
+  } catch { console.log('rikishi API は未作成です。'); }
 
-  // 決まり手ごとに、得意にしている力士を集める
   const byKimarite = new Map();
-  for (const r of rikishi) {
-    for (const k of r.kimariteStyle || []) {
-      if (!byKimarite.has(k.name)) byKimarite.set(k.name, []);
-      byKimarite.get(k.name).push([r, k.pct]);
-    }
+  for (const r of db.rikishi) for (const k of r.kimariteStyle || []) {
+    if (!byKimarite.has(k.name)) byKimarite.set(k.name, []);
+    byKimarite.get(k.name).push([r, k.pct]);
   }
   for (const v of byKimarite.values()) v.sort((a, b) => b[1] - a[1]);
 
-  await write('rikishi/index.html',
-    head(`力士データベース — ${settings.site_name || 'SUMO GIRL'}`,
-      '追跡している力士の番付推移と成績をまとめています。', '/rikishi/')
-    + header('rikishi')
-    + `<div class="pagehead wrap"><h1>力士データベース</h1><p>幕内・十両・幕下の${rikishi.length}人を追いかけています。名前をひらくと、初土俵からの番付推移が出ます。</p></div>`
-    + rikishiIndexBody(rikishi) + footer(settings));
+  const order = { makuuchi: 0, juryo: 1, makushita: 2 };
+  const sorted = [...db.rikishi].sort((a, b) => order[a.division] - order[b.division] || a.row - b.row);
 
-  for (const r of rikishi) {
+  await write('rikishi/index.html',
+    head(`力士データベース — ${settings.site_name || 'SUMO GIRL LAB'}`,
+      `幕内・十両・幕下あわせて${db.rikishi.length}人の番付推移と成績。`, '/rikishi/')
+    + header('rikishi')
+    + pagehead('力士データベース', `幕内・十両・幕下あわせて${db.rikishi.length}人。見出しをクリックすると並べ替えられます。`)
+    + `<main id="main"><div class="wrap block">${rikishiTable(sorted)}</div></main>` + footer(settings));
+
+  for (const r of db.rikishi) {
     await write(`rikishi/${r.name}/index.html`,
-      head(`${r.name} — ${settings.site_name || 'SUMO GIRL'}`,
-        `${r.name}（${r.rank}・${r.heya}）の番付推移と成績。`, `/rikishi/${encodeURIComponent(r.name)}/`)
-      + header('rikishi') + `<main id="main">` + rikishiBody(r, memos.get(r.name)) + `</main>` + footer(settings));
+      head(`${r.name}（${r.rank}）— ${settings.site_name || 'SUMO GIRL LAB'}`,
+        `${r.name}、${r.heya}、${r.from}。番付推移と通算成績。`, `/rikishi/${encodeURIComponent(r.name)}/`)
+      + header('rikishi') + `<main id="main">${rikishiBody(r, memos.get(r.name))}</main>` + footer(settings));
     dbUrls.push(`/rikishi/${encodeURIComponent(r.name)}/`);
   }
 
-  await write('kimarite/index.html',
-    head(`決まり手図鑑 — ${settings.site_name || 'SUMO GIRL'}`,
-      '八十二手と非技五つ、あわせて87種を一覧にしています。', '/kimarite/')
-    + header('kimarite')
-    + `<div class="pagehead wrap"><h1>決まり手図鑑</h1><p>日本相撲協会が定める八十二手と、非技五つ。あわせて87種あります。</p></div>`
-    + kimariteIndexBody(kimarite, byKimarite) + footer(settings));
+  await write('ranking/index.html',
+    head(`ランキング — ${settings.site_name || 'SUMO GIRL LAB'}`,
+      '勝率、決まり手、部屋別、出身地、最終学歴の集計。', '/ranking/')
+    + header('ranking')
+    + pagehead('ランキング', '当サイトが追跡している力士の範囲で集計しています。')
+    + rankingBody(db.rikishi) + footer(settings));
 
-  for (const k of kimarite) {
+  await write('kimarite/index.html',
+    head(`決まり手図鑑 — ${settings.site_name || 'SUMO GIRL LAB'}`,
+      '日本相撲協会が定める八十二手と非技五つ、あわせて87種。', '/kimarite/')
+    + header('kimarite')
+    + pagehead('決まり手図鑑', '八十二手と非技五つ、あわせて87種。得意にしている関取の数も出しています。')
+    + `<main id="main"><div class="wrap block">${kimariteBody(db.kimarite, byKimarite)}</div></main>` + footer(settings));
+
+  for (const k of db.kimarite) {
     await write(`kimarite/${k.n}/index.html`,
-      head(`${k.name} — ${settings.site_name || 'SUMO GIRL'}`, k.desc, `/kimarite/${k.n}/`)
-      + header('kimarite') + `<main id="main">`
-      + kimariteBody(k, (byKimarite.get(k.name) || []).slice(0, 12)) + `</main>` + footer(settings));
+      head(`${k.name} — ${settings.site_name || 'SUMO GIRL LAB'}`, k.desc, `/kimarite/${k.n}/`)
+      + header('kimarite') + `<main id="main">${kimariteDetail(k, (byKimarite.get(k.name) || []).slice(0, 20))}</main>` + footer(settings));
     dbUrls.push(`/kimarite/${k.n}/`);
   }
 
-  dbUrls.push('/rikishi/', '/kimarite/');
-  console.log(`力士 ${rikishi.length} 人、決まり手 ${kimarite.length} 種のページを作りました。`);
+  dbUrls.push('/rikishi/', '/kimarite/', '/ranking/');
+  console.log(`力士 ${db.rikishi.length} 人、決まり手 ${db.kimarite.length} 種。`);
 } else {
-  console.log(`${DB_PATH} がないので、データベースのページは作りません。`);
+  console.log('sumo.json が見つかりません。データベースは作りません。');
 }
 
-// アセットをコピー（assets/ にあっても、ルート直下にあっても拾う）
+await write('index.html', indexPage(settings, articles, db));
+for (const a of articles) await write(`${kindOf(a)}/${a.slug || a.id}/index.html`, postPage(settings, a));
+for (const [k, v] of Object.entries(KINDS))
+  await write(`${k}/index.html`, listPage(settings, v.label, v.desc, articles.filter(a => kindOf(a) === k), k, `/${k}/`));
+await write('archive/index.html', listPage(settings, '記事の一覧', '新しい順に並んでいます。', articles, '', '/archive/'));
+
 await mkdir(join(OUT, 'assets'), { recursive: true });
 for (const f of ['style.css', 'site.js']) {
-  const src = existsSync(join('assets', f)) ? join('assets', f)
-            : existsSync(f) ? f
-            : null;
-  if (src) {
-    await copyFile(src, join(OUT, 'assets', f));
-  } else {
-    console.warn(`警告: ${f} が見つかりません。リポジトリに置かれているか確認してください。`);
-  }
+  const src = existsSync(join('assets', f)) ? join('assets', f) : existsSync(f) ? f : null;
+  if (src) await copyFile(src, join(OUT, 'assets', f));
+  else console.warn(`警告: ${f} が見つかりません。`);
 }
 
-// sitemap と robots
 const urls = ['/', '/archive/', ...Object.keys(KINDS).map(k => `/${k}/`), ...articles.map(urlOf), ...dbUrls];
 await write('sitemap.xml',
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-  urls.map(u => `<url><loc>${SITE_URL}${u}</loc></url>`).join('\n') +
-  `\n</urlset>\n`);
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`
+  + urls.map(u => `<url><loc>${SITE_URL}${u}</loc></url>`).join('\n') + `\n</urlset>\n`);
 await write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 
 console.log(`${OUT}/ に書き出しました。`);
