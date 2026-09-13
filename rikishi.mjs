@@ -76,28 +76,39 @@ export function rankChart(r) {
 </figure>`;
 }
 
-/* ── 力士カード ───────────────────────────── */
+/* ── 力士カード（東西二列の番付形式） ───────── */
 const DIVS = [
-  ['makuuchi', '幕内', '十両より上。番付表の最上段に載る力士です。'],
+  ['makuuchi', '幕内', '番付表の最上段。横綱から前頭まで。'],
   ['juryo', '十両', 'ここから関取。給料が出て、付け人が付きます。'],
   ['makushita', '幕下', '関取のひとつ下。ここを抜けられるかが大きな壁です。']
 ];
+
+/* 和暦の場所表記を「2018.01」の形に縮めます */
+const ERA = { 令和: 2018, 平成: 1988, 昭和: 1925 };
+function shortBasho(s) {
+  if (!s) return null;
+  const m = String(s).match(/(令和|平成|昭和)(元|\d+)年(\d+)月/);
+  if (!m) return s;
+  const y = ERA[m[1]] + (m[2] === '元' ? 1 : +m[2]);
+  return `${y}.${String(m[3]).padStart(2, '0')}`;
+}
+const shortSchool = g => !g ? null : (g.match(/^(大卒|高卒|中卒)/) || [g])[0];
 
 function card(r) {
   const c = r._career, y = r._year, cr = r.career || {};
   const facts = [
     ['通算', c ? `${c.win}勝${c.loss}敗` : null],
     ['勝率', c ? `${pct(c.rate)}%` : null],
-    ['2026年', y ? `${y.win}勝${y.loss}敗` : null],
+    ['2026', y ? `${y.win}勝${y.loss}敗` : null],
     ['最高位', r.highestRank],
-    ['初土俵', cr.hatsudohyo],
-    ['新十両', cr.shinjuryo],
-    ['新入幕', cr.shinnyumaku],
-    ['学歴', cr.gakureki],
+    ['初土俵', shortBasho(cr.hatsudohyo)],
+    ['新入幕', shortBasho(cr.shinnyumaku) || shortBasho(cr.shinjuryo)],
+    ['学歴', shortSchool(cr.gakureki)],
     ['体格', r._h ? `${r._h}cm ${r._w}kg` : null]
   ].filter(([, v]) => v);
 
-  return `<a class="card" href="/rikishi/${encodeURIComponent(r.name)}/" data-div="${r.division}" data-q="${esc([r.name, r.heya, r.from, r.rank, cr.gakureki || ''].join(' '))}">
+  return `<a class="card" href="/rikishi/${encodeURIComponent(r.name)}/" data-div="${r.division}"
+  data-q="${esc([r.name, r.heya, r.from, r.rank, cr.gakureki || ''].join(' '))}">
   <span class="cbar" style="background:${esc(r.mawashiColor?.hex || '#999')}"></span>
   <span class="crank">${esc(r.rank)}</span>
   <span class="cmain">
@@ -106,18 +117,33 @@ function card(r) {
       <span class="cmeta">${esc(r.heya || '')}　${esc(r.from || '')}</span>
     </span>
     <span class="cfacts">${facts.map(([k, v]) =>
-      `<span class="cf"><span class="ck">${esc(k)}</span><span class="cv">${esc(v)}</span></span>`).join('')}</span>
+      `<span class="cf"><span class="ck">${esc(k)}</span><span class="cv"${k === '学歴' && cr.gakureki ? ` title="${esc(cr.gakureki)}"` : ''}>${esc(v)}</span></span>`).join('')}</span>
   </span>
 </a>`;
 }
+
+const blank = '<span class="card empty-slot" aria-hidden="true"></span>';
 
 export function rikishiCards(list) {
   return `<div class="cardwrap" id="cardView">${DIVS.map(([key, label, note]) => {
     const rs = list.filter(r => r.division === key);
     if (!rs.length) return '';
+    const rows = [...new Set(rs.map(r => r.row))].sort((a, b) => a - b);
+    const body = rows.map(n => {
+      const east = rs.filter(r => r.row === n && r.side === 'east');
+      const west = rs.filter(r => r.row === n && r.side === 'west');
+      const len = Math.max(east.length, west.length);
+      let out = '';
+      for (let i = 0; i < len; i++) {
+        out += east[i] ? card(east[i]) : blank;
+        out += west[i] ? card(west[i]) : blank;
+      }
+      return out;
+    }).join('');
     return `<section class="divsec" data-div="${key}">
   <h2 class="divhead"><span class="dv">${label}</span><span class="dn">${rs.length}人</span><span class="dd">${esc(note)}</span></h2>
-  <div class="cards">${rs.map(card).join('')}</div>
+  <div class="ew" aria-hidden="true"><span>東</span><span>西</span></div>
+  <div class="cards">${body}</div>
 </section>`;
   }).join('')}</div>`;
 }
