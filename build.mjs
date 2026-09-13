@@ -10,7 +10,7 @@ import {
   rikishiTable, rikishiCards, rikishiBody, rankingBody,
   kimariteBody, kimariteDetail, esc
 } from './rikishi.mjs';
-import { buildMap } from './map.mjs';
+import { japanMap } from './japan.mjs';
 
 const SERVICE = process.env.MICROCMS_SERVICE_DOMAIN || process.env.VITE_MICROCMS_SERVICE_DOMAIN;
 const KEY = process.env.MICROCMS_API_KEY || process.env.VITE_MICROCMS_API_KEY;
@@ -165,7 +165,7 @@ function indexPage(s, articles, db) {
   <a class="hcard" href="/rikishi/"><span class="hn">${db.rikishi.length}</span><span class="hl">力士</span><span class="hd">番付推移・成績・決まり手の傾向</span></a>
   <a class="hcard" href="/kimarite/"><span class="hn">${db.kimarite.length}</span><span class="hl">決まり手</span><span class="hd">八十二手と非技五つ</span></a>
   <a class="hcard" href="/ranking/"><span class="hn">7</span><span class="hl">ランキング</span><span class="hd">勝率・部屋別・出身地・学歴</span></a>
-  <a class="hcard" href="/map/"><span class="hn">${new Set(db.rikishi.map(r => r.from)).size}</span><span class="hl">出身地</span><span class="hd">都道府県と海外の升目地図</span></a>
+  <a class="hcard" href="/map/"><span class="hn">${new Set(db.rikishi.map(r => r.from)).size}</span><span class="hl">出身地</span><span class="hd">日本地図でみる出身地</span></a>
 </section>`;
 
     const t = R.byYearRate.slice(0, 5);
@@ -268,10 +268,10 @@ if (DB_PATH) {
 
   await write('map/index.html',
     head(`出身地マップ — ${settings.site_name || 'SUMO GIRL LAB'}`,
-      '力士の出身地を都道府県ごとの升目で示した地図。海外出身もあわせて。', '/map/')
+      '力士の出身地を日本地図の上に示したもの。海外出身もあわせて。', '/map/')
     + header('map')
-    + pagehead('出身地マップ', '升目の濃さが人数です。えらぶと、その土地の力士が出ます。')
-    + `<main id="main"><div class="wrap block">${buildMap(db.rikishi)}</div></main>` + footer(settings));
+    + pagehead('出身地マップ', '円の大きさが人数です。えらぶと、その土地の力士が出ます。')
+    + `<main id="main"><div class="wrap block">${japanMap(db.rikishi)}</div></main>` + footer(settings));
   dbUrls.push('/map/');
 
   for (const r of db.rikishi) {

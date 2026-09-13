@@ -96,11 +96,13 @@
   if (md) {
     var mapData = JSON.parse(md.textContent);
     var side = document.getElementById('mapside');
-    var tiles = document.querySelectorAll('.jpmap .tile.has');
+    var tiles = document.querySelectorAll('.jpmap .bub');
     function show(name) {
       var rs = mapData[name] || [];
       Array.prototype.forEach.call(tiles, function (t) {
-        t.classList.toggle('sel', t.dataset.from === name);
+        var on = t.dataset.from === name;
+        t.classList.toggle('sel', on);
+        t.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
       side.innerHTML = '<h2>' + name + '<span>' + rs.length + '人</span></h2><ul>' +
         rs.map(function (r) {

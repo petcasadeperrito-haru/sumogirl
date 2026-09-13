@@ -76,36 +76,49 @@ export function rankChart(r) {
 </figure>`;
 }
 
-/* ── 小さな番付推移（カード用） ─────────────── */
-function spark(r) {
-  const h = (r.rankHistory || []).filter(x => rankValue(x.rank) !== null).slice(-28);
-  if (h.length < 2) return '';
-  const W = 72, H = 22;
-  const pts = h.map((x, i) => [
-    (i / (h.length - 1)) * W,
-    H - 2 - (rankValue(x.rank) / 9.92) * (H - 4)
-  ]);
-  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
-  const last = pts[pts.length - 1];
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true">
-  <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.4"/>
-  <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2" fill="var(--accent)"/>
-</svg>`;
-}
-
 /* ── 力士カード ───────────────────────────── */
-export function rikishiCards(list) {
-  return `<div class="cards" id="cardView" hidden>${list.map(r => {
-    const c = r._career;
-    return `<a class="card" href="/rikishi/${encodeURIComponent(r.name)}/" data-div="${r.division}" data-q="${esc([r.name, r.heya, r.from, r.rank].join(' '))}">
+const DIVS = [
+  ['makuuchi', '幕内', '十両より上。番付表の最上段に載る力士です。'],
+  ['juryo', '十両', 'ここから関取。給料が出て、付け人が付きます。'],
+  ['makushita', '幕下', '関取のひとつ下。ここを抜けられるかが大きな壁です。']
+];
+
+function card(r) {
+  const c = r._career, y = r._year, cr = r.career || {};
+  const facts = [
+    ['通算', c ? `${c.win}勝${c.loss}敗` : null],
+    ['勝率', c ? `${pct(c.rate)}%` : null],
+    ['2026年', y ? `${y.win}勝${y.loss}敗` : null],
+    ['最高位', r.highestRank],
+    ['初土俵', cr.hatsudohyo],
+    ['新十両', cr.shinjuryo],
+    ['新入幕', cr.shinnyumaku],
+    ['学歴', cr.gakureki],
+    ['体格', r._h ? `${r._h}cm ${r._w}kg` : null]
+  ].filter(([, v]) => v);
+
+  return `<a class="card" href="/rikishi/${encodeURIComponent(r.name)}/" data-div="${r.division}" data-q="${esc([r.name, r.heya, r.from, r.rank, cr.gakureki || ''].join(' '))}">
   <span class="cbar" style="background:${esc(r.mawashiColor?.hex || '#999')}"></span>
   <span class="crank">${esc(r.rank)}</span>
   <span class="cmain">
-    <span class="cname">${esc(r.name)}</span>
-    <span class="cmeta">${esc(r.heya || '')}　${esc(r.from || '')}</span>
-    <span class="cfoot">${spark(r)}<span class="crate">${c ? pct(c.rate) + '%' : '—'}</span></span>
+    <span class="chead">
+      <span class="cname">${esc(r.name)}</span>
+      <span class="cmeta">${esc(r.heya || '')}　${esc(r.from || '')}</span>
+    </span>
+    <span class="cfacts">${facts.map(([k, v]) =>
+      `<span class="cf"><span class="ck">${esc(k)}</span><span class="cv">${esc(v)}</span></span>`).join('')}</span>
   </span>
 </a>`;
+}
+
+export function rikishiCards(list) {
+  return `<div class="cardwrap" id="cardView">${DIVS.map(([key, label, note]) => {
+    const rs = list.filter(r => r.division === key);
+    if (!rs.length) return '';
+    return `<section class="divsec" data-div="${key}">
+  <h2 class="divhead"><span class="dv">${label}</span><span class="dn">${rs.length}人</span><span class="dd">${esc(note)}</span></h2>
+  <div class="cards">${rs.map(card).join('')}</div>
+</section>`;
   }).join('')}</div>`;
 }
 
