@@ -15,8 +15,9 @@ import { japanMap } from './japan.mjs';
 const SERVICE = process.env.MICROCMS_SERVICE_DOMAIN || process.env.VITE_MICROCMS_SERVICE_DOMAIN;
 const KEY = process.env.MICROCMS_API_KEY || process.env.VITE_MICROCMS_API_KEY;
 const SITE_URL = (process.env.SITE_URL || 'https://sumogirl.pages.dev').replace(/\/$/, '');
-// アクセス解析。未設定ならタグを出しません（手元で試すときに本番の数値が汚れないように）
-const GA_ID = process.env.GA_ID || '';
+// アクセス解析。測定IDはページのソースに出る公開情報なので、ここに直接書いています。
+// 環境変数 GA_ID を設定すると、そちらが優先されます。
+const GA_ID = process.env.GA_ID || 'G-P3DQR3GD8D';
 const CF_BEACON = process.env.CF_BEACON || '';
 const OUT = 'dist';
 
