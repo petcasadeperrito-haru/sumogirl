@@ -15,6 +15,9 @@ import { japanMap } from './japan.mjs';
 const SERVICE = process.env.MICROCMS_SERVICE_DOMAIN || process.env.VITE_MICROCMS_SERVICE_DOMAIN;
 const KEY = process.env.MICROCMS_API_KEY || process.env.VITE_MICROCMS_API_KEY;
 const SITE_URL = (process.env.SITE_URL || 'https://sumogirl.pages.dev').replace(/\/$/, '');
+// アクセス解析。未設定ならタグを出しません（手元で試すときに本番の数値が汚れないように）
+const GA_ID = process.env.GA_ID || '';
+const CF_BEACON = process.env.CF_BEACON || '';
 const OUT = 'dist';
 
 /* ──────────────────────────────────────────────
@@ -59,6 +62,20 @@ async function write(path, html) {
 }
 
 /* ── 共通の枠 ─────────────────────────────── */
+function analytics() {
+  let out = '';
+  if (GA_ID) {
+    out += `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');</script>
+`;
+  }
+  if (CF_BEACON) {
+    out += `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"${CF_BEACON}"}'></script>
+`;
+  }
+  return out;
+}
+
 function head(title, description, path) {
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -77,7 +94,7 @@ function head(title, description, path) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Yomogi&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/style.css">
-</head>
+${analytics()}</head>
 <body>
 <a class="skip" href="#main">本文へ移動</a>`;
 }
@@ -114,6 +131,7 @@ function footer(s) {
     <p class="fn">${esc(s.site_name || 'SUMO GIRL LAB')}</p>
     <p>データは日本相撲協会の公表資料をもとに集計したものです。本場所の映像・写真は掲載していません。図表はすべて自作です。</p>
     ${links ? `<ul class="social">${links}</ul>` : ''}
+    <p class="fsub"><a href="/privacy/">プライバシーポリシー</a></p>
   </div>
 </footer>
 <script src="/assets/site.js" defer></script>
@@ -230,6 +248,59 @@ function listPage(s, title, sub, arts, cur, path) {
 </div></main>` + footer(s);
 }
 
+
+/* ── プライバシーポリシー ─────────────────── */
+function privacyPage(s) {
+  const name = s.site_name || 'SUMO GIRL LAB';
+  const contact = s.contact_url || s.x_url || '';
+  const today = new Date();
+  const updated = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
+
+  return head(`プライバシーポリシー — ${name}`,
+    `${name}における、アクセス解析と個人情報の取り扱いについて。`, '/privacy/')
+    + header()
+    + pagehead('プライバシーポリシー', `${name}（以下「当サイト」）における、情報の取り扱いについて定めたものです。`)
+    + `<main id="main"><article class="detail wrap">
+<div class="body">
+
+<h2>アクセス解析について</h2>
+<p>当サイトでは、サイトの利用状況を把握し、内容を改善するために、次のアクセス解析ツールを使用しています。</p>
+
+<h3>Google アナリティクス</h3>
+<p>Google LLC が提供する Google アナリティクスを使用しています。このツールは、閲覧されたページ、サイトに滞在した時間、おおよその地域、使用されている端末やブラウザの種類といった情報を、Cookie（クッキー）を用いて収集します。</p>
+<p>収集される情報は統計的に処理されたものであり、個人を特定するものではありません。収集された情報は Google 社のプライバシーポリシーに基づいて管理されます。</p>
+<p>Cookie による収集を希望されない場合は、ご利用のブラウザの設定で Cookie を無効にするか、Google が提供する<a href="https://tools.google.com/dlpage/gaoptout?hl=ja" rel="nofollow">オプトアウト アドオン</a>をご利用ください。</p>
+<p>Google アナリティクスの詳細は、<a href="https://policies.google.com/technologies/partner-sites?hl=ja" rel="nofollow">Google のポリシーと規約</a>および<a href="https://marketingplatform.google.com/about/analytics/terms/jp/" rel="nofollow">Google アナリティクス利用規約</a>をご確認ください。</p>
+
+<h3>Cloudflare Web Analytics</h3>
+<p>当サイトは Cloudflare, Inc. が提供する Cloudflare Web Analytics を使用しています。このツールは Cookie を使用せず、閲覧者を個人として識別したり、複数のサイトを横断して追跡したりすることはありません。</p>
+
+<h2>個人情報の取り扱い</h2>
+<p>当サイトは、お問い合わせフォームや会員登録の仕組みを設けておらず、氏名・住所・電話番号・メールアドレスなどの個人情報を、閲覧者から直接取得することはありません。</p>
+<p>前項のアクセス解析によって取得する情報には、IPアドレスなど個人情報に該当しうるものが含まれる場合がありますが、当サイトではこれを個人の特定に用いることはなく、サイトの改善以外の目的で利用することもありません。</p>
+<p>取得した情報を、法令に基づく場合を除き、第三者に提供することはありません。</p>
+
+<h2>当サイトで扱う情報について</h2>
+<p>当サイトに掲載している力士の成績、番付、決まり手などの記録は、日本相撲協会が公表している資料をもとに、当サイトが独自に集計したものです。内容の正確性には注意を払っていますが、集計や転記の誤りが含まれる可能性があります。正式な記録については、必ず日本相撲協会の公表資料をご確認ください。</p>
+<p>当サイトは、本場所の映像および会場内で撮影された写真を掲載していません。図表はすべて当サイトが作成したものです。</p>
+<p>出身地マップの地図データは、Wikimedia Commons で公開されている「日本地図」（作者：Lincun、<a href="https://creativecommons.org/licenses/by-sa/3.0/deed.ja" rel="license">CC BY-SA 3.0</a>）を簡略化して作成した二次的著作物です。同ライセンスの継承条件に従い、当サイトの地図も CC BY-SA 3.0 で提供します。</p>
+<p>上記を除く当サイトの文章・図表の著作権は、当サイトに帰属します。引用の範囲を超えて利用される場合は、ご連絡ください。</p>
+
+<h2>免責事項</h2>
+<p>当サイトの情報を利用して生じたいかなる損害についても、当サイトは責任を負いかねます。</p>
+<p>当サイトから外部サイトへのリンクを掲載する場合がありますが、リンク先で提供される情報やサービスについて、当サイトは責任を負いません。</p>
+
+<h2>ポリシーの変更</h2>
+<p>当サイトは、必要に応じて本ポリシーを変更することがあります。変更した場合は、このページに掲載します。</p>
+
+${contact ? `<h2>お問い合わせ</h2>
+<p>本ポリシーに関するお問い合わせは、<a href="${esc(contact)}" rel="nofollow">こちら</a>よりお願いします。</p>` : ''}
+
+<p class="source">最終更新日：${updated}</p>
+</div>
+</article></main>` + footer(s);
+}
+
 /* ── 実行 ─────────────────────────────────── */
 const settings = await api('settings');
 const { contents: articles } = await api('contents', '?limit=100&orders=-publishedAt');
@@ -314,6 +385,7 @@ for (const a of articles) await write(`${kindOf(a)}/${a.slug || a.id}/index.html
 for (const [k, v] of Object.entries(KINDS))
   await write(`${k}/index.html`, listPage(settings, v.label, v.desc, articles.filter(a => kindOf(a) === k), k, `/${k}/`));
 await write('archive/index.html', listPage(settings, '記事の一覧', '新しい順に並んでいます。', articles, '', '/archive/'));
+await write('privacy/index.html', privacyPage(settings));
 
 await mkdir(join(OUT, 'assets'), { recursive: true });
 for (const f of ['style.css', 'site.js']) {
@@ -322,7 +394,7 @@ for (const f of ['style.css', 'site.js']) {
   else console.warn(`警告: ${f} が見つかりません。`);
 }
 
-const urls = ['/', '/archive/', ...Object.keys(KINDS).map(k => `/${k}/`), ...articles.map(urlOf), ...dbUrls];
+const urls = ['/', '/archive/', '/privacy/', ...Object.keys(KINDS).map(k => `/${k}/`), ...articles.map(urlOf), ...dbUrls];
 await write('sitemap.xml',
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`
   + urls.map(u => `<url><loc>${SITE_URL}${u}</loc></url>`).join('\n') + `\n</urlset>\n`);

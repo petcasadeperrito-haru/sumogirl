@@ -127,14 +127,15 @@ header .tools button[aria-pressed="true"]{border-color:var(--gold-br);color:var(
 .divhead .dd{font-size:.82rem;color:var(--faint);font-weight:400}
 
 /* ── 力士カード ─────────────── */
-.ew{display:none}
-@media(min-width:52rem){
-  .ew{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin:0 0 .45rem}
-  .ew span{font-size:.82rem;letter-spacing:.3em;color:var(--faint);text-align:center}
-  .cards{grid-template-columns:1fr 1fr}
-}
+/* 基本は1列。画面が広ければ東西2列にする（順序を入れ替えないこと） */
 .cards{display:grid;grid-template-columns:1fr;gap:.9rem;align-items:start}
 .card.empty-slot{border:1px dashed var(--rule);background:transparent;min-height:1px}
+.ew{display:none}
+@media(min-width:52rem){
+  .cards{grid-template-columns:1fr 1fr}
+  .ew{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin:0 0 .5rem;padding:0 0 .3rem;border-bottom:1px solid var(--rule)}
+  .ew span{font-size:.84rem;letter-spacing:.34em;color:var(--faint);text-align:center}
+}
 .card{display:grid;grid-template-columns:7px 2.3rem 1fr;background:var(--panel);border:1px solid var(--rule);border-radius:4px;text-decoration:none;overflow:hidden}
 .card:hover{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
 .cbar{display:block}
@@ -248,3 +249,11 @@ footer p{margin:0 0 .5rem;max-width:48em;line-height:1.9}
 footer a{color:var(--gold-br)}
 .fn{font-size:1rem;color:#F2EDE1;letter-spacing:.16em;font-weight:700}
 .social{display:flex;gap:1.2rem;list-style:none;margin:.9rem 0 0;padding:0}
+
+/* ── フッターの補助リンク ───────── */
+.fsub{margin:.9rem 0 0;font-size:.8rem}
+.fsub a{color:#BDB4A2;text-decoration:underline;text-underline-offset:.2em}
+.fsub a:hover{color:var(--gold-br)}
+
+/* ── 規約ページの小見出し ───────── */
+.detail .body h3{font-size:.95rem;font-weight:700;margin:1.8rem 0 .6rem;color:var(--sub)}
