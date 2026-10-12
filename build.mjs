@@ -5,12 +5,13 @@
 import { mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { enrich, buildRankings, pct, divisionLabel } from './stats.mjs';
+import { enrich, buildRankings, pct, divisionLabel, resultText } from './stats.mjs';
 import {
   rikishiTable, rikishiCards, rikishiBody, rankingBody,
   kimariteBody, kimariteDetail, esc
 } from './rikishi.mjs';
 import { japanMap } from './japan.mjs';
+import { cardIndex, kimariteCard, rikishiCard, rankingCard, draftsPage } from './share.mjs';
 
 const SERVICE = process.env.MICROCMS_SERVICE_DOMAIN || process.env.VITE_MICROCMS_SERVICE_DOMAIN;
 const KEY = process.env.MICROCMS_API_KEY || process.env.VITE_MICROCMS_API_KEY;
@@ -163,7 +164,7 @@ function yearBar() {
   <title id="ybT">一年の中の本場所の位置</title>
   <desc id="ybD">年六場所、各十五日間の位置を一年の帯の上に示したもの。</desc>
   <line x1="24" y1="43" x2="696" y2="43" stroke="var(--rule)" stroke-width="1"/>
-  <g fill="var(--accent)">${blocks.join('')}</g>
+  <g fill="var(--ink)">${blocks.join('')}</g>
   <g class="lbl-wide ax">${wide.join('')}</g>
   <g class="lbl-narrow ax2">${narrow.join('')}</g>
   <g id="nowMark" hidden>
@@ -171,6 +172,44 @@ function yearBar() {
     <circle id="nowDot" cx="0" cy="26" r="3.5" fill="var(--ink)"/>
   </g>
 </svg>`;
+}
+
+/* ── 直近の場所の結果 ─────────────────────── */
+function lastBashoBlock(db) {
+  const lb = db.lastBasho;
+  if (!lb) return '';
+  const byName = new Map(db.rikishi.map(r => [r.name, r]));
+  const a = n => byName.has(n) ? `<a href="/rikishi/${encodeURIComponent(n)}/">${esc(n)}</a>` : esc(n);
+  const rec = n => { const x = byName.get(n)?._last; return x && x.basho === lb.id ? `（${resultText(x)}）` : ''; };
+  const names = list => list.length ? list.map(n => a(n) + rec(n)).join('・') : '該当なし';
+  const [mk, ...others] = lb.yusho || [];
+  const nth = c => c === 1 ? '初優勝' : `${c}度目`;
+  const ten = db.rikishi
+    .filter(r => r._last && r._last.basho === lb.id && r._last.w >= 10)
+    .sort((x, y) => y._last.w - x._last.w || x.row - y.row);
+
+  return `<section class="wrap block lastb" aria-labelledby="lbT">
+  <div class="bhead"><h2 id="lbT">${esc(lb.name)}の結果</h2><a href="/rikishi/">全員の成績を見る</a></div>
+  <div class="lbgrid">
+    ${mk ? `<div class="lbmain">
+      <p class="lbk">${esc(mk.division)}優勝</p>
+      <p class="lbn">${a(mk.name)}</p>
+      <p class="lbr">${esc(mk.rank)}　${esc(mk.record)}　${nth(mk.count)}</p>
+      ${mk.memo ? `<p class="lbm">${esc(mk.memo)}</p>` : ''}
+    </div>` : ''}
+    <dl class="lbl">
+      ${others.map(y => `<div><dt>${esc(y.division)}優勝</dt><dd>${a(y.name)}（${esc(y.record)}）　${nth(y.count)}${y.memo ? `<span class="lbs">${esc(y.memo)}</span>` : ''}</dd></div>`).join('')}
+      <div><dt>殊勲賞</dt><dd>${names(lb.sansho?.shukun || [])}</dd></div>
+      <div><dt>敢闘賞</dt><dd>${names(lb.sansho?.kanto || [])}</dd></div>
+      <div><dt>技能賞</dt><dd>${names(lb.sansho?.gino || [])}</dd></div>
+      ${(lb.kinboshi || []).length ? `<div><dt>金星</dt><dd>${lb.kinboshi.map(k => `${a(k.name)}（${k.day}日目、${esc(k.opponent)}に勝つ）`).join('・')}</dd></div>` : ''}
+      ${lb.next?.shinjuryo?.length ? `<div><dt>${esc(lb.next.name)}で新十両</dt><dd>${lb.next.shinjuryo.map(a).join('・')}</dd></div>` : ''}
+    </dl>
+  </div>
+  ${ten.length ? `<h3 class="lbh">二桁勝った関取　${ten.length}人</h3>
+  <ul class="lbten">${ten.map(r => `<li>${a(r.name)}<span>${r._last.w}勝</span></li>`).join('')}</ul>` : ''}
+  <p class="source">出典：日本相撲協会（各段優勝・三賞・力士プロフィール）。${lb.next?.banzuke ? `${esc(lb.next.name)}の番付発表は${+lb.next.banzuke.slice(5, 7)}月${+lb.next.banzuke.slice(8, 10)}日の予定です。` : ''}</p>
+</section>`;
 }
 
 /* ── トップページ ─────────────────────────── */
@@ -189,9 +228,9 @@ function indexPage(s, articles, db) {
 
     const t = R.byYearRate.slice(0, 5);
     top5 = `<section class="wrap block">
-  <div class="bhead"><h2>2026年 勝率上位</h2><a href="/ranking/">ランキングをすべて見る</a></div>
+  <div class="bhead"><h2>2026年 勝率上位<small>十両以上の土俵で</small></h2><a href="/ranking/">ランキングをすべて見る</a></div>
   <table class="data compact"><thead><tr><th scope="col" class="n">#</th><th scope="col">力士</th><th scope="col">番付</th><th scope="col" class="n">勝率%</th><th scope="col" class="n">勝-敗</th></tr></thead>
-  <tbody>${t.map((r, i) => `<tr><td class="n rk">${i + 1}</td><td class="nm"><span class="dot" style="background:${esc(r.mawashiColor?.hex || '#999')}"></span><a href="/rikishi/${encodeURIComponent(r.name)}/">${esc(r.name)}</a></td><td>${esc(r.rank)}</td><td class="n">${pct(r._year.rate)}</td><td class="n">${r._year.win}-${r._year.loss}</td></tr>`).join('')}</tbody></table>
+  <tbody>${t.map((r, i) => `<tr><td class="n rk">${i + 1}</td><td class="nm"><span class="dot" style="background:${esc(r.mawashiColor?.hex || '#999')}"></span><a href="/rikishi/${encodeURIComponent(r.name)}/">${esc(r.name)}</a></td><td>${esc(r.rank)}</td><td class="n">${pct(r._yearS.rate)}</td><td class="n">${r._yearS.win}-${r._yearS.loss}</td></tr>`).join('')}</tbody></table>
 </section>`;
   }
 
@@ -207,6 +246,7 @@ function indexPage(s, articles, db) {
 </section>
 <script id="bashoData" type="application/json">${JSON.stringify({ basho: BASHO, written: writtenMap(articles) })}</script>
 <main id="main">
+${db ? lastBashoBlock(db) : ''}
 ${hub}
 ${top5}
 <section class="wrap block">
@@ -312,7 +352,7 @@ let db = null, dbUrls = [];
 
 if (DB_PATH) {
   const raw = JSON.parse(readFileSync(DB_PATH, 'utf8'));
-  db = { rikishi: enrich(raw.rikishi || []), kimarite: raw.kimarite || [] };
+  db = { rikishi: enrich(raw.rikishi || []), kimarite: raw.kimarite || [], lastBasho: raw.lastBasho || null };
 
   let memos = new Map();
   try {
@@ -388,8 +428,54 @@ for (const [k, v] of Object.entries(KINDS))
 await write('archive/index.html', listPage(settings, '記事の一覧', '新しい順に並んでいます。', articles, '', '/archive/'));
 await write('privacy/index.html', privacyPage(settings));
 
+/* ── SNS用のページ（検索には出しません） ─────────── */
+{
+  const cardR = [], cardK = [], cardRank = [];
+
+  if (db) {
+    const byK = new Map();
+    for (const r of db.rikishi) for (const k of r.kimariteStyle || []) {
+      if (!byK.has(k.name)) byK.set(k.name, []);
+      byK.get(k.name).push([r, k.pct]);
+    }
+
+    for (const k of db.kimarite) {
+      await write(`cards/kimarite/${k.n}/index.html`, kimariteCard(k, byK.get(k.name) || []));
+      cardK.push([`/cards/kimarite/${k.n}/`, k.name]);
+    }
+    for (const r of db.rikishi) {
+      await write(`cards/rikishi/${r.name}/index.html`, rikishiCard(r));
+      cardR.push([`/cards/rikishi/${encodeURIComponent(r.name)}/`, r.name]);
+    }
+
+    const R = buildRankings(db.rikishi);
+    const defs = [
+      ['year-rate', '2026年 勝率', '十両以上で二十番以上', R.byYearRate.slice(0, 5)
+        .map(x => ({ name: x.name, value: `${pct(x._yearS.rate)}%` }))],
+      ['career-rate', '通算勝率', '百番以上', R.byCareerRate.slice(0, 5)
+        .map(x => ({ name: x.name, value: `${pct(x._career.rate)}%` }))],
+      ['kimarite', '得意にしている力士が多い決まり手', '関取のみ', R.byKimarite.slice(0, 5)
+        .map(x => ({ name: x.name, value: `${x.users}人` }))],
+      ['heya', '部屋別 2026年勝率', '関取のみ', R.byHeya.slice(0, 5)
+        .map(x => ({ name: x.name, value: `${pct(x.rate)}%` }))],
+      ['from', '出身地', `${db.rikishi.length}人を集計`, R.byFrom.filter(x => x.name !== '不明').slice(0, 5)
+        .map(x => ({ name: x.name, value: `${x.n}人` }))]
+    ];
+    for (const [id, ttl, note, rows] of defs) {
+      if (!rows.length) continue;
+      await write(`cards/ranking/${id}/index.html`, rankingCard(id, ttl, note, rows));
+      cardRank.push([`/cards/ranking/${id}/`, ttl]);
+    }
+  }
+
+  await write('cards/index.html', cardIndex(cardR, cardK, cardRank));
+  await write('drafts/index.html',
+    draftsPage(articles, db, SITE_URL, a => KINDS[kindOf(a)].label, urlOf));
+  console.log(`カード ${cardR.length + cardK.length + cardRank.length} 枚、Xの下書きページを作りました。`);
+}
+
 await mkdir(join(OUT, 'assets'), { recursive: true });
-for (const f of ['style.css', 'site.js']) {
+for (const f of ['style.css', 'site.js', 'card.css']) {
   const src = existsSync(join('assets', f)) ? join('assets', f) : existsSync(f) ? f : null;
   if (src) await copyFile(src, join(OUT, 'assets', f));
   else console.warn(`警告: ${f} が見つかりません。`);

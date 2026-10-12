@@ -1,6 +1,6 @@
 // 力士一覧、ランキング、決まり手図鑑のページを組み立てます。
 
-import { pct, divisionLabel, buildRankings } from './stats.mjs';
+import { pct, divisionLabel, buildRankings, resultText, bashoName, sideJ } from './stats.mjs';
 
 export const esc = (s = '') => String(s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -94,6 +94,18 @@ function shortBasho(s) {
 }
 const shortSchool = g => !g ? null : (g.match(/^(大卒|高卒|中卒)/) || [g])[0];
 
+/* 縦書きの番付。「下15」は「幕下」に直し、数字は縦中横にします */
+const vRank = rk => esc(String(rk || '').replace(/^下(?=\d)/, '幕下'))
+  .replace(/(\d+)/g, '<span class="tcy">$1</span>');
+
+/* 直近の場所の一行。「9月　12勝3敗　幕内優勝」 */
+function lastLine(r) {
+  const x = r._last;
+  if (!x) return '';
+  const mon = `${+x.basho.slice(5, 7)}月`;
+  return `<span class="clast"><span class="lk">${mon}</span><span class="lv">${esc(resultText(x))}</span>${x.note ? `<span class="ln">${esc(x.note)}</span>` : ''}${r.next ? `<span class="cnext">${esc(bashoName(r.next.basho))}で${esc(r.next.label)}</span>` : ''}</span>`;
+}
+
 function card(r) {
   const c = r._career, y = r._year, cr = r.career || {};
   const facts = [
@@ -102,7 +114,7 @@ function card(r) {
     ['2026', y ? `${y.win}勝${y.loss}敗` : null],
     ['最高位', r.highestRank],
     ['初土俵', shortBasho(cr.hatsudohyo)],
-    ['新入幕', shortBasho(cr.shinnyumaku) || shortBasho(cr.shinjuryo)],
+    cr.shinnyumaku ? ['新入幕', shortBasho(cr.shinnyumaku)] : ['新十両', shortBasho(cr.shinjuryo)],
     ['学歴', shortSchool(cr.gakureki)],
     ['体格', r._h ? `${r._h}cm ${r._w}kg` : null]
   ].filter(([, v]) => v);
@@ -110,11 +122,12 @@ function card(r) {
   return `<a class="card" href="/rikishi/${encodeURIComponent(r.name)}/" data-div="${r.division}"
   data-q="${esc([r.name, r.heya, r.from, r.rank, cr.gakureki || ''].join(' '))}">
   <span class="cbar" style="background:${esc(r.mawashiColor?.hex || '#999')}"></span>
-  <span class="crank">${esc(r.rank)}</span>
+  <span class="crank">${vRank(r.rank)}</span>
   <span class="cmain">
     <span class="chead">
       <span class="cname">${esc(r.name)}</span>
       <span class="cmeta">${esc(r.heya || '')}　${esc(r.from || '')}</span>
+      ${lastLine(r)}
     </span>
     <span class="cfacts">${facts.map(([k, v]) =>
       `<span class="cf"><span class="ck">${esc(k)}</span><span class="cv"${k === '学歴' && cr.gakureki ? ` title="${esc(cr.gakureki)}"` : ''}>${esc(v)}</span></span>`).join('')}</span>
@@ -126,8 +139,10 @@ const blank = '<span class="card empty-slot" aria-hidden="true"></span>';
 
 export function rikishiCards(list) {
   return `<div class="cardwrap" id="cardView">${DIVS.map(([key, label, note]) => {
-    const rs = list.filter(r => r.division === key);
-    if (!rs.length) return '';
+    const all = list.filter(r => r.division === key);
+    if (!all.length) return '';
+    const rs = all.filter(r => !r.hidden);
+    const below = all.filter(r => r.hidden).sort((a, b) => a.row - b.row || (a.side === 'east' ? -1 : 1));
     const rows = [...new Set(rs.map(r => r.row))].sort((a, b) => a - b);
     const body = rows.map(n => {
       const east = rs.filter(r => r.row === n && r.side === 'east');
@@ -141,17 +156,25 @@ export function rikishiCards(list) {
       return out;
     }).join('');
     return `<section class="divsec" data-div="${key}">
-  <h2 class="divhead"><span class="dv">${label}</span><span class="dn">${rs.length}人</span><span class="dd">${esc(note)}</span></h2>
+  <h2 class="divhead"><span class="dv">${label}</span><span class="dn">${all.length}人</span><span class="dd">${esc(note)}</span></h2>
   <div class="ew" aria-hidden="true"><span>東</span><span>西</span></div>
   <div class="cards">${body}</div>
+  ${below.length ? `<h3 class="subhead">${label}十六枚目より下<span>${below.length}人</span></h3>
+  <p class="subnote">直近の場所で${label}十六枚目より下にいた力士です。東西の並びではなく、番付の順に並べています。</p>
+  <div class="cards below">${below.map(card).join('')}</div>` : ''}
 </section>`;
   }).join('')}</div>`;
 }
 
 /* ── 力士一覧（表） ───────────────────────── */
+const lastLabel = list => {
+  const x = list.find(r => r._last)?._last;
+  return x ? `${+x.basho.slice(5, 7)}月場所` : '直近';
+};
+
 export function rikishiTable(list) {
   const rows = list.map(r => {
-    const c = r._career, yr = r._year;
+    const c = r._career, yr = r._year, x = r._last;
     return `<tr data-div="${r.division}" data-q="${esc([r.name, r.heya, r.from, r.rank].join(' '))}">
   <td class="nm"><span class="dot" style="background:${esc(r.mawashiColor?.hex || '#999')}"></span><a href="/rikishi/${encodeURIComponent(r.name)}/">${esc(r.name)}</a></td>
   <td data-v="${rankValue(r.rank) ?? -1}">${esc(r.rank)}</td>
@@ -160,6 +183,7 @@ export function rikishiTable(list) {
   <td class="n" data-v="${c ? c.win : -1}">${c ? c.win : '—'}</td>
   <td class="n" data-v="${c ? c.rate : -1}">${c ? pct(c.rate) : '—'}</td>
   <td class="n" data-v="${yr ? yr.rate : -1}">${yr ? `${yr.win}-${yr.loss}` : '—'}</td>
+  <td class="n" data-v="${x ? x.w * 100 - x.l : -9999}">${x ? (x.w + x.l === 0 && x.a ? '全休' : `${x.w}-${x.l}${x.a ? `-${x.a}` : ''}`) : '—'}</td>
   <td class="n" data-v="${r._h || -1}">${r._h || '—'}</td>
   <td class="n" data-v="${r._w || -1}">${r._w || '—'}</td>
 </tr>`;
@@ -188,6 +212,7 @@ export function rikishiTable(list) {
     <th scope="col" class="n" data-sort="num">通算勝</th>
     <th scope="col" class="n" data-sort="num">勝率%</th>
     <th scope="col" class="n" data-sort="num">2026年</th>
+    <th scope="col" class="n" data-sort="num">${esc(lastLabel(list))}</th>
     <th scope="col" class="n" data-sort="num">身長</th>
     <th scope="col" class="n" data-sort="num">体重</th>
   </tr></thead>
@@ -195,6 +220,29 @@ export function rikishiTable(list) {
 </table>
 </div>
 <p class="hits" id="hits"></p>`;
+}
+
+/* ── 2026年の各場所 ───────────────────────── */
+function yearTable(r) {
+  const res = r.results2026 || [];
+  if (!res.length) return '';
+  const y = r._year;
+  const kk = x => x.w + x.l === 0 ? '' : x.w > x.l ? '勝ち越し' : x.w < x.l ? '負け越し' : '五分';
+  return `<section class="yr">
+  <h2 id="yrT">2026年の成績</h2>
+  <div class="tw"><table class="data" aria-labelledby="yrT">
+    <thead><tr><th scope="col">場所</th><th scope="col">番付</th><th scope="col" class="n">成績</th><th scope="col">結果</th><th scope="col">備考</th></tr></thead>
+    <tbody>${res.map(x => `<tr${x === r._last ? ' class="cur"' : ''}>
+      <th scope="row">${esc(bashoName(x.basho))}</th>
+      <td>${esc(sideJ(x.side))}${esc(x.rank)}</td>
+      <td class="n">${esc(resultText(x))}</td>
+      <td>${esc(kk(x))}</td>
+      <td>${esc(x.note || '')}</td>
+    </tr>`).join('')}</tbody>
+    ${y ? `<tfoot><tr><th scope="row">計</th><td></td><td class="n">${esc(r.record.year2026)}</td><td colspan="2">勝率 ${pct(y.rate)}%</td></tr></tfoot>` : ''}
+  </table></div>
+  <p class="source">幕下以下の場所は七番、十両以上は十五番です。「休」は休場した日数です。</p>
+</section>`;
 }
 
 /* ── 力士の詳細 ───────────────────────────── */
@@ -209,7 +257,8 @@ export function rikishiBody(r, memo) {
     ['最高位', r.highestRank],
     ['通算', rec.career ? `${r._career.win}勝${r._career.loss}敗` : null],
     ['通算勝率', r._career ? `${pct(r._career.rate)}%` : null],
-    ['2026年', rec.year2026]
+    ['2026年', rec.year2026],
+    r._last ? [bashoName(r._last.basho), resultText(r._last) + (r._last.note ? `　${r._last.note}` : '')] : [null, null]
   ].filter(([, v]) => v);
 
   const rows = [
@@ -220,6 +269,8 @@ export function rikishiBody(r, memo) {
     ['幕内成績', rec.makuuchi],
     ['優勝', yusho.length ? yusho.map(([k, v]) => `${k} ${v}回`).join('、') : null],
     ['三賞', sansho.length ? sansho.map(([k, v]) => `${k} ${v}回`).join('、') : null],
+    ['金星', r.kinboshi ? `${r.kinboshi}個` : null],
+    ['次の場所', r.next ? `${bashoName(r.next.basho)}で${r.next.label}（番付編成会議で決定）` : null],
     ['まわし', c?.name]
   ].filter(([, v]) => v);
 
@@ -233,6 +284,8 @@ export function rikishiBody(r, memo) {
   <dl class="kpi">${kpi.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
 
   ${rankChart(r)}
+
+  ${yearTable(r)}
 
   <div class="cols">
     <section>
@@ -275,10 +328,10 @@ ${rankTable('通算勝率　上位20（100番以上）', R.byCareerRate.slice(0,
     ['勝率%', r => pct(r._career.rate), true],
     ['勝-敗', r => `${r._career.win}-${r._career.loss}`, true]
   ])}
-${rankTable('2026年 勝率　上位20（20番以上）', R.byYearRate.slice(0, 20), [
+${rankTable('2026年 勝率　上位20（十両以上で20番以上）', R.byYearRate.slice(0, 20), [
     ['力士', link], ['番付', r => esc(r.rank), false],
-    ['勝率%', r => pct(r._year.rate), true],
-    ['勝-敗', r => `${r._year.win}-${r._year.loss}`, true]
+    ['勝率%', r => pct(r._yearS.rate), true],
+    ['勝-敗', r => `${r._yearS.win}-${r._yearS.loss}`, true]
   ])}
 ${rankTable('通算勝星　上位20', R.byWins.slice(0, 20), [
     ['力士', link], ['番付', r => esc(r.rank), false],
@@ -302,7 +355,7 @@ ${rankTable('出身地', R.byFrom.slice(0, 15), [
 ${rankTable('最終学歴', R.bySchool, [
     ['学歴', s => esc(s.name), false], ['人数', s => s.n, true]
   ])}
-<p class="source">日本相撲協会の公表資料をもとに、当サイトで集計したものです。幕下は追跡対象の範囲に限られます。</p>
+<p class="source">日本相撲協会の公表資料をもとに、当サイトで集計したものです。2026年の勝率と部屋別は、十両以上の土俵で取った一番だけを数えています。幕下は追跡対象の範囲に限られます。</p>
 </div></main>`;
 }
 

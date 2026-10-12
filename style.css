@@ -6,6 +6,7 @@
   --shu:#A8351F; --ai:#244A7B;
   --rule:#E3DCCC; --rule-soft:#F2EEE4; --ctl:#7E7665;
   --land:#EFEADD;
+  --accent:var(--shu);
   --fs:1rem;
 }
 @media (prefers-color-scheme:dark){
@@ -257,3 +258,47 @@ footer a{color:var(--gold-br)}
 
 /* ── 規約ページの小見出し ───────── */
 .detail .body h3{font-size:.95rem;font-weight:700;margin:1.8rem 0 .6rem;color:var(--sub)}
+
+/* ── カード：直近の場所の成績 ───────── */
+.clast{display:flex;align-items:baseline;gap:.5rem;margin-top:.32rem;font-size:.8rem;white-space:nowrap;overflow:hidden}
+.clast .lk{color:var(--faint)}
+.clast .lv{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.clast .ln{color:var(--shu);font-weight:700}
+.cnext{margin-left:auto;font-size:.72rem;line-height:1.6;color:var(--gold);border:1px solid currentColor;border-radius:2px;padding:0 .4rem}
+.subhead{display:flex;align-items:baseline;gap:.6rem;font-size:1rem;font-weight:700;margin:1.8rem 0 .3rem;padding-bottom:.35rem;border-bottom:1px solid var(--rule)}
+.subhead span{font-size:.82rem;font-weight:400;color:var(--gold);font-variant-numeric:tabular-nums}
+.subnote{font-size:.82rem;color:var(--faint);margin:0 0 .8rem}
+
+/* ── 力士の詳細：2026年の成績 ───────── */
+.yr{margin:0 0 2.2rem}
+.yr tbody th{font-weight:500;text-align:left}
+.yr tr.cur{background:var(--rule-soft)}
+.yr tfoot th,.yr tfoot td{border-top:2px solid var(--ink);font-weight:700;padding:.55rem .8rem;text-align:left}
+.yr tfoot td.n{text-align:right}
+.yr .source{margin-top:.6rem}
+
+/* ── トップ：直近の場所の結果 ───────── */
+.lbgrid{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+@media(min-width:48rem){.lbgrid{grid-template-columns:minmax(14rem,1fr) 2fr}}
+.lbmain{background:var(--panel);padding:1.3rem 1.3rem 1.2rem}
+.lbk{margin:0;font-size:.84rem;color:var(--faint);letter-spacing:.08em}
+.lbn{margin:.1rem 0 0;font-size:2rem;font-weight:700;line-height:1.25}
+.lbn a{text-decoration:none;color:var(--ink);border-bottom:2px solid var(--gold)}
+.lbr{margin:.45rem 0 0;font-size:.92rem;font-variant-numeric:tabular-nums}
+.lbm{margin:.7rem 0 0;font-size:.88rem;color:var(--sub);line-height:1.85}
+.lbl{margin:0;background:var(--panel);padding:.5rem 1.2rem}
+.lbl div{display:grid;grid-template-columns:8.5rem 1fr;gap:.8rem;padding:.55rem 0;border-bottom:1px solid var(--rule-soft)}
+.lbl div:last-child{border-bottom:0}
+.lbl dt{color:var(--faint);font-size:.88rem}
+.lbl dd{margin:0;font-size:.94rem;font-variant-numeric:tabular-nums}
+.lbs{display:block;font-size:.82rem;color:var(--sub);margin-top:.1rem}
+.lbh{font-size:.94rem;font-weight:700;margin:1.4rem 0 .6rem}
+.lbten{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.45rem}
+.lbten li{display:flex;gap:.4rem;align-items:baseline;border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:.25rem .6rem;font-size:.9rem}
+.lbten span{font-size:.8rem;color:var(--sub);font-variant-numeric:tabular-nums}
+@media(max-width:30rem){.lbl div{grid-template-columns:1fr;gap:.1rem}}
+
+/* 縦書きの番付の中の数字は横に並べる（縦中横） */
+.crank{font-family:'Zen Kaku Gothic New','Hiragino Sans','Noto Sans JP','Noto Sans CJK JP','Yu Gothic','Meiryo',sans-serif;font-feature-settings:normal}
+.crank .tcy{text-combine-upright:all;-webkit-text-combine:horizontal;letter-spacing:0}
+.bhead h2 small{font-size:.78rem;font-weight:400;color:var(--faint);margin-left:.6rem;letter-spacing:0}
