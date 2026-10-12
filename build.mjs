@@ -214,7 +214,7 @@ function lastBashoBlock(db) {
 
 /* ── トップページ ─────────────────────────── */
 function indexPage(s, articles, db) {
-  const latest = articles.slice(0, 4);
+  const latest = articles.slice(0, 5);
   let hub = '', top5 = '';
 
   if (db) {
@@ -234,27 +234,45 @@ function indexPage(s, articles, db) {
 </section>`;
   }
 
+  // 最新の1本を大きく、続く4本を横に並べます（ファーストビューに記事が入るように）
+  const [pick, ...rest] = latest;
+  const meta = a => `<span class="pk ${kindOf(a)}">${KINDS[kindOf(a)].label}</span><time datetime="${esc(a.publishedAt)}">${jpDate(a.publishedAt)}</time>`;
+  const feed = pick ? `<div class="feedgrid">
+    <article class="pick">
+      <a href="${urlOf(pick)}">
+        <span class="pmeta">${meta(pick)}<span class="pnew">最新</span></span>
+        <h3 class="ptitle">${esc(pick.title_ja)}</h3>
+        ${pick.summary_ja ? `<span class="psum">${esc(pick.summary_ja)}</span>` : ''}
+        <span class="pmore" aria-hidden="true">続きを読む</span>
+      </a>
+    </article>
+    ${rest.length ? `<ul class="posts side">${rest.map(a => `<li>
+      <a href="${urlOf(a)}"><span class="pk ${kindOf(a)}">${KINDS[kindOf(a)].label}</span><span class="pt">${esc(a.title_ja)}</span><time datetime="${esc(a.publishedAt)}">${jpDate(a.publishedAt)}</time></a>
+    </li>`).join('')}</ul>` : ''}
+  </div>` : '<p class="empty">まだ記事がありません。</p>';
+
   return head(s.site_name || 'SUMO GIRL LAB',
     s.description_ja || '大相撲の力士データと、見て思ったことの記録。', '/')
     + header() + `
-<section class="hero wrap" aria-labelledby="ht">
-  <h1 id="ht">${s.tagline_ja || '大相撲が動くのは、一年で九十日。<br>残りの日は、数えたり調べたりしています。'}</h1>
-  ${yearBar()}
-  <p class="status" id="status"></p>
-  ${s.notice ? `<p class="notice">${esc(s.notice)}</p>` : ''}
-  <div class="fifteen" id="fifteen" hidden><h2 id="f15">この場所に書いたもの</h2><ol class="days" id="days" aria-labelledby="f15"></ol></div>
-</section>
 <script id="bashoData" type="application/json">${JSON.stringify({ basho: BASHO, written: writtenMap(articles) })}</script>
 <main id="main">
+<section class="intro wrap" aria-labelledby="ht">
+  <h1 id="ht">${s.tagline_ja || '大相撲が動くのは、一年で九十日。<br>残りの日は、数えたり調べたりしています。'}</h1>
+  <p class="status" id="status"></p>
+  ${s.notice ? `<p class="notice">${esc(s.notice)}</p>` : ''}
+</section>
+<section class="wrap feed" aria-labelledby="feedT">
+  <div class="bhead"><h2 id="feedT">最近書いたもの</h2><a href="/archive/">記事の一覧</a></div>
+  <div class="fifteen" id="fifteen" hidden><h3 id="f15">この場所に書いたもの</h3><ol class="days" id="days" aria-labelledby="f15"></ol></div>
+  ${feed}
+</section>
 ${db ? lastBashoBlock(db) : ''}
+<section class="wrap block cal" aria-labelledby="calT">
+  <div class="bhead"><h2 id="calT">一年の本場所</h2></div>
+  ${yearBar()}
+</section>
 ${hub}
 ${top5}
-<section class="wrap block">
-  <div class="bhead"><h2>最近書いたもの</h2><a href="/archive/">記事の一覧</a></div>
-  ${latest.length ? `<ul class="posts">${latest.map(a => `<li>
-    <a href="${urlOf(a)}"><span class="pk ${kindOf(a)}">${KINDS[kindOf(a)].label}</span><span class="pt">${esc(a.title_ja)}</span><time datetime="${esc(a.publishedAt)}">${jpDate(a.publishedAt)}</time></a>
-  </li>`).join('')}</ul>` : '<p class="empty">まだ記事がありません。</p>'}
-</section>
 <section class="wrap block about">
   <h2>このサイトについて</h2>
   ${(s.profile_ja || '').split('\n').filter(Boolean).map(p => `<p>${esc(p)}</p>`).join('') || '<p>大相撲の記録を集めて、数えて、書いています。</p>'}

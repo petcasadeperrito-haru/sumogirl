@@ -1,11 +1,20 @@
 (function () {
   /* ── 文字の大きさ ── */
+  // ページ全体（rem で指定した文字も含めて）を拡大します。選んだ大きさはこのブラウザに覚えておきます。
   var btns = document.querySelectorAll('.tools button');
+  function setSize(v) {
+    document.documentElement.style.fontSize = (parseFloat(v) * 100) + '%';
+    Array.prototype.forEach.call(btns, function (o) {
+      o.setAttribute('aria-pressed', o.dataset.size === v ? 'true' : 'false');
+    });
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('fontSize'); } catch (e) {}
+  if (saved && saved !== '1') setSize(saved);
   Array.prototype.forEach.call(btns, function (b) {
     b.addEventListener('click', function () {
-      Array.prototype.forEach.call(btns, function (o) { o.setAttribute('aria-pressed', 'false'); });
-      b.setAttribute('aria-pressed', 'true');
-      document.documentElement.style.setProperty('--fs', b.dataset.size + 'rem');
+      setSize(b.dataset.size);
+      try { localStorage.setItem('fontSize', b.dataset.size); } catch (e) {}
     });
   });
 
