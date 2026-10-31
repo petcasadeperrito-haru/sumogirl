@@ -89,11 +89,35 @@ const plain = html => String(html || '').replace(/<(script|style|svg)[\s\S]*?<\/
   .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
   .replace(/\s+/g, ' ').trim();
 const clip = (s, n) => s.length <= n ? s : s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…';
-// 英語の要約欄はないので、英語本文の最初の段落から作ります。
+// 英語の要約欄はないので、英語本文の最初の段落から作ります（【】や[ ]の目印の段落は飛ばす）。
 const summaryEn = a => {
-  const firstP = (String(a.body_en || '').match(/<p[^>]*>([\s\S]*?)<\/p>/) || [])[1];
-  return clip(plain(firstP || a.body_en), 155);
+  const ps = [...String(a.body_en || '').matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map(m => plain(m[1])).filter(t => t && !/^[\[【※*]/.test(t));
+  return clip(ps[0] || plain(a.body_en), 155);
 };
+
+/* ── 本文の目印を部品に変える（2026-10-31 追加）────────
+   記事の下書きでは【ふきだし】【用語カード】【データカード】【手書きメモ】【まとめ枠（墨ベタ）】【写真：…】
+   （英語版は [Speech bubble] [Glossary] [Data card] [Summary box] [Photo: …]）という目印を使っています。
+   そのままだと目印の文字が読者に見えてしまうので、ここで設計どおりの部品にします。
+   写真の目印は、写真がまだないので表示しません。 */
+function components(html, lang = 'ja') {
+  let s = String(html || '');
+  const P = String.raw`<p(?:\s[^>]*)?>`;
+  s = s.replace(new RegExp(`${P}\\s*(?:【写真[：:][^】]*】|\\[Photo:[^\\]]*\\])\\s*</p>`, 'g'), '');
+  s = s.replace(new RegExp(`<blockquote(?:\\s[^>]*)?>\\s*${P}\\s*(?:【ふきだし】|\\[Speech bubble\\])\\s*([\\s\\S]*?)</p>\\s*</blockquote>`, 'g'),
+    '<aside class="bubble"><p>$1</p></aside>');
+  s = s.replace(new RegExp(`${P}\\s*(?:【ふきだし】|\\[Speech bubble\\])\\s*([\\s\\S]*?)</p>`, 'g'), '<aside class="bubble"><p>$1</p></aside>');
+  s = s.replace(new RegExp(`<h3([^>]*)>\\s*(?:【用語カード】|\\[Glossary\\])\\s*([\\s\\S]*?)</h3>(${P}[\\s\\S]*?</p>)?`, 'g'),
+    (m, attr, t, p) => `<aside class="term"><p class="term-k">${lang === 'en' ? 'Glossary' : '用語'}</p><h3${attr}>${t}</h3>${p || ''}</aside>`);
+  s = s.replace(new RegExp(`${P}\\s*【手書きメモ】\\s*([\\s\\S]*?)</p>`, 'g'), '<p class="pen">$1</p>');
+  s = s.replace(new RegExp(`${P}\\s*(?:【データカード】|\\[Data card\\])\\s*</p>\\s*(<table[\\s\\S]*?</table>)(\\s*${P}\\s*(?:出典|Source)[\\s\\S]*?</p>)?`, 'g'),
+    '<div class="datacard">$1$2</div>');
+  s = s.replace(new RegExp(`${P}\\s*(?:【データカード】|\\[Data card\\])\\s*</p>\\s*(${P}[\\s\\S]*?</p>)`, 'g'), '<div class="datacard">$1</div>');
+  s = s.replace(new RegExp(`${P}\\s*(?:【まとめ枠[^】]*】|\\[Summary box\\])\\s*</p>\\s*(<[uo]l[\\s\\S]*?</[uo]l>)`, 'g'), '<div class="summary">$1</div>');
+  // 取りこぼした目印の文字だけ消す
+  s = s.replace(/【(?:データカード|まとめ枠[^】]*|ふきだし|用語カード|手書きメモ)】|\[(?:Data card|Summary box|Speech bubble|Glossary)\]\s*/g, '');
+  return s;
+}
 const keywordsOf = (a, lang) => (SEO[a.slug] && SEO[a.slug][lang]) || [];
 
 async function write(path, html) {
@@ -448,7 +472,7 @@ function postPage(s, a) {
   <h1>${esc(a.title_ja)}</h1>
   ${a.summary_ja ? `<p class="lead-p">${esc(a.summary_ja)}</p>` : ''}
   ${a.figure_svg ? `<figure class="chart">${a.figure_svg}</figure>` : ''}
-  <div class="body">${a.body_ja || ''}</div>
+  <div class="body">${components(a.body_ja, 'ja')}</div>
   ${en ? `<p class="langnote"><a href="${enUrlOf(a)}" lang="en" hreflang="en">Read this article in English</a></p>` : ''}
 </article></main>` + footer(s);
 }
@@ -463,7 +487,7 @@ function enPostPage(s, a) {
   <nav class="crumb" aria-label="Breadcrumb"><a href="/en/${k}/">${KINDS_EN[k].label}</a> <span>/</span> <time datetime="${esc(a.publishedAt)}">${enDate(a.publishedAt)}</time></nav>
   <h1>${esc(a.title_en)}</h1>
   ${a.figure_svg ? `<figure class="chart">${a.figure_svg}</figure>` : ''}
-  <div class="body">${a.body_en}</div>
+  <div class="body">${components(a.body_en, 'en')}</div>
   <p class="langnote"><a href="${urlOf(a)}" lang="ja" hreflang="ja">この記事を日本語で読む</a></p>
 </article></main>` + footer(s, 'en');
 }
