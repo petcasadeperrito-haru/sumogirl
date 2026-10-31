@@ -342,3 +342,9 @@ footer a{color:var(--gold-br)}
   .intro h1{font-size:1.25rem}
 }
 #fsLabel{white-space:nowrap}
+
+/* 言語切替（2026-10-31 追加） */
+header .tools .lang{margin-left:.5rem;font-size:.78rem;color:#F2EDE1;text-decoration:none;border:1px solid #5A5346;border-radius:3px;padding:.12rem .5rem;white-space:nowrap}
+header .tools .lang:hover,header .tools .lang:focus-visible{border-color:var(--gold-br);color:var(--gold-br)}
+.langnote{margin-top:2.4rem;padding-top:1rem;border-top:1px solid var(--rule)}
+.fsub a{white-space:nowrap}
