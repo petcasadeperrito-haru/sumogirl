@@ -348,3 +348,22 @@ header .tools .lang{margin-left:.5rem;font-size:.78rem;color:#F2EDE1;text-decora
 header .tools .lang:hover,header .tools .lang:focus-visible{border-color:var(--gold-br);color:var(--gold-br)}
 .langnote{margin-top:2.4rem;padding-top:1rem;border-top:1px solid var(--rule)}
 .fsub a{white-space:nowrap}
+
+/* 本文の部品（2026-10-31 追加）：ふきだし・用語カード・手書きメモ・データカード・まとめ枠 */
+.detail .body .bubble{position:relative;margin:1.4rem 0 1.8rem;padding:.85rem 1.2rem;background:#FFF8E8;color:#1A1712;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);font-weight:700;max-width:30em}
+.detail .body .bubble::before{content:"";position:absolute;left:26px;top:-9px;border:9px solid transparent;border-top:0;border-bottom-color:#FFF8E8}
+.detail .body .bubble p{margin:0}
+.detail .body .term{margin:1.6rem 0;padding:1rem 1.2rem;background:#F6F3FA;color:#1A1712;border:1px solid #D9CFEA;border-left:4px solid #7A5CA6}
+.detail .body .term-k{margin:0 0 .15rem;font-size:.72rem;letter-spacing:.16em;color:#5E4690;font-weight:700}
+.detail .body .term h3{margin:0 0 .45rem;font-size:1.02rem;color:#1A1712}
+.detail .body .term p:last-child{margin:0}
+.detail .body .pen{position:relative;margin:-.4rem 0 1.6rem;padding-left:1.5rem;font-family:'Yomogi',cursive;font-size:1.06rem;line-height:1.7;color:#37618C}
+.detail .body .pen::before{content:"→";position:absolute;left:0;top:0}
+.detail .body .datacard{margin:1.6rem 0;padding:1rem 1.2rem .4rem;background:var(--panel);border:1px solid var(--rule);border-top:3px solid var(--ai);overflow-x:auto}
+.detail .body .datacard table{margin-bottom:.8rem}
+.detail .body .datacard p:last-child{font-size:.82rem;color:var(--sub)}
+.detail .body .summary{margin:1.2rem 0 1.8rem;padding:1.1rem 1.4rem;background:#1A1712;color:#F2EDE1}
+.detail .body .summary ul{margin:0}
+.detail .body .summary li+li{margin-top:.5rem}
+.detail .body .summary a{color:#D6AE45}
+@media (prefers-color-scheme:dark){.detail .body .pen{color:#8FB3DB}.detail .body .summary{border:1px solid #5A5346}}
